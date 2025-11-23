@@ -9,32 +9,24 @@
     <meta http-equiv="Expires" content="0">
     <title>Login - Attendance System</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
-        body {
-            background-image: url("{{ url_for('static', filename='images/login.jpg') }}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            min-height: 100vh;
-        }
-
-        .login-card {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 
 <body>
     <div class="login-container">
         <div class="card login-card">
-            <h2 style="text-align: center; margin-bottom: 30px;">Welcome Back</h2>
+            <div class="text-center mb-4">
+                <i class="fas fa-user-circle" style="font-size: 4rem; color: var(--primary);"></i>
+                <h2 class="mt-2">Welcome Back</h2>
+                <p style="color: var(--text-muted);">Please sign in to continue</p>
+            </div>
 
             {% with messages = get_flashed_messages() %}
             {% if messages %}
             {% for message in messages %}
-            <div class="alert alert-error">{{ message }}</div>
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i> {{ message }}
+            </div>
             {% endfor %}
             {% endif %}
             {% endwith %}
@@ -61,7 +53,9 @@
                         autocomplete="new-password">
                 </div>
 
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    Login <i class="fas fa-arrow-right" style="margin-left: 8px;"></i>
+                </button>
             </form>
         </div>
     </div>

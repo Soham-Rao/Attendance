@@ -38,7 +38,7 @@ def run_live_attendance(class_id, subject):
         face_encodings = face_recognition.face_encodings(rgb_frame, known_face_locations=face_locations)
 
         for (top, right, bottom, left), encoding in zip(face_locations, face_encodings):
-            matches = face_recognition.compare_faces(known_encodings, encoding, tolerance=0.5)
+            matches = face_recognition.compare_faces(known_encodings, encoding, tolerance=0.6)
             name = "Unknown"
 
             if True in matches:
@@ -104,7 +104,7 @@ def process_frame(frame, known_encodings, student_ids, student_names):
     results = []
 
     for (top, right, bottom, left), encoding in zip(face_locations, face_encodings):
-        matches = face_recognition.compare_faces(known_encodings, encoding, tolerance=0.5)
+        matches = face_recognition.compare_faces(known_encodings, encoding, tolerance=0.6)
         name = "Unknown"
         student_id = None
 

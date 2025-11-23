@@ -1,12 +1,11 @@
 import os
 import shutil
-from flask import Flask, render_template, request, redirect, session, make_response, url_for
+from flask import Flask, render_template, request, redirect, session, make_response, url_for, flash
 import sqlite3
 import pickle
 from io import StringIO
 import csv
 import datetime
-from database import init_db
 from database import init_db
 from face_recog import capture_face_encoding, run_live_attendance, get_class_encodings, process_frame
 import base64
@@ -33,15 +32,19 @@ def login():
             c.execute("SELECT * FROM students WHERE usn=? AND dob=?", (username, password))
         else:
             conn.close()
-            return "Invalid role"
+            flash("Invalid role selected", "danger")
+            return render_template("login.html")
+        
         user = c.fetchone()
         conn.close()
+        
         if user:
             session["username"] = username
             session["role"] = role
             return redirect("/dashboard")
         else:
-            return "Invalid credentials"
+            flash("Invalid credentials. Please try again.", "danger")
+            return render_template("login.html")
     return render_template("login.html")
 
 # ---------- DASHBOARD ----------
@@ -263,23 +266,114 @@ def add_student():
     name = request.form["name"]
     dob = request.form["dob"]
     class_id = request.form["class_id"]
-    image_path = request.form["image_path"].strip('"').strip("'")
-    if not os.path.exists('known_images'):
-        os.makedirs('known_images')
-    ext = os.path.splitext(image_path)[1]
-    dest_path = os.path.join('known_images', f"{usn}{ext}")
-    shutil.copyfile(image_path, dest_path)
+    
+    # Ensure registered_faces directory exists
+    if not os.path.exists('registered_faces'):
+        os.makedirs('registered_faces')
+
+    image_file = request.files.get("student_image")
+    image_path_input = request.form.get("image_path")
+    
+    dest_path = None
+    
+    if image_file and image_file.filename:
+        # Handle file upload
+        ext = os.path.splitext(image_file.filename)[1]
+        dest_path = os.path.join('registered_faces', f"{usn}{ext}")
+        image_file.save(dest_path)
+    elif image_path_input:
+        # Handle manual path
+        image_path = image_path_input.strip('"').strip("'")
+        if os.path.exists(image_path):
+            ext = os.path.splitext(image_path)[1]
+            dest_path = os.path.join('registered_faces', f"{usn}{ext}")
+            shutil.copyfile(image_path, dest_path)
+        else:
+            flash("Source image file not found", "danger")
+            return redirect("/add_student_form")
+    else:
+        flash("No image provided", "danger")
+        return redirect("/add_student_form")
+
+    if not dest_path:
+        flash("Failed to save image", "danger")
+        return redirect("/add_student_form")
+
     encoding = capture_face_encoding(dest_path)
     if encoding is None:
-        return "Face not found in image"
+        # Clean up if no face found
+        if os.path.exists(dest_path):
+            os.remove(dest_path)
+        flash("Face not found in image. Please use a clear photo.", "danger")
+        return redirect("/add_student_form")
+        
     face_blob = pickle.dumps(encoding)
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
-    c.execute("INSERT INTO students (usn, name, dob, class_id, face_encoding) VALUES (?,?,?,?,?)",
-              (usn, name, dob, class_id, face_blob))
+    try:
+        c.execute("INSERT INTO students (usn, name, dob, class_id, face_encoding) VALUES (?,?,?,?,?)",
+                  (usn, name, dob, class_id, face_blob))
+        conn.commit()
+        flash("Student added successfully!", "success")
+    except sqlite3.IntegrityError:
+        conn.close()
+        flash("Student with this USN already exists.", "warning")
+        return redirect("/add_student_form")
+        
+    conn.close()
+    return redirect("/add_student_form")
+
+# ---------- SUBJECT MANAGEMENT ----------
+@app.route("/subjects")
+def subjects():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    c.execute("SELECT id, class_name FROM classes ORDER BY class_name")
+    classes = c.fetchall()
+    
+    selected_class_id = request.args.get("class_id")
+    subjects_list = []
+    
+    if selected_class_id:
+        c.execute("SELECT id, name FROM subjects WHERE class_id=? ORDER BY name", (selected_class_id,))
+        subjects_list = c.fetchall()
+        
+    conn.close()
+    return render_template("subjects.html", classes=classes, subjects=subjects_list, 
+                           selected_class_id=int(selected_class_id) if selected_class_id else None)
+
+@app.route("/add_subject", methods=["POST"])
+def add_subject():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    class_id = request.form["class_id"]
+    name = request.form["name"]
+    
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO subjects (class_id, name) VALUES (?,?)", (class_id, name))
     conn.commit()
     conn.close()
-    return "Student added successfully"
+    
+    flash("Subject added successfully!", "success")
+    return redirect(f"/subjects?class_id={class_id}")
+
+@app.route("/delete_subject/<int:sid>", methods=["POST"])
+def delete_subject(sid):
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    class_id = request.form.get("class_id")
+    
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM subjects WHERE id=?", (sid,))
+    conn.commit()
+    conn.close()
+    
+    flash("Subject deleted successfully!", "success")
+    return redirect(f"/subjects?class_id={class_id}")
 
 # ---------- MARK ATTENDANCE (with dropdowns) ----------
 @app.route("/mark_attendance", methods=["GET", "POST"])
@@ -295,7 +389,8 @@ def mark_attendance():
     if selected_class_id:
         try:
             cid = int(selected_class_id)
-            c.execute("SELECT DISTINCT subject FROM timetable WHERE class_id=?", (cid,))
+            # Fetch subjects from the new subjects table
+            c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (cid,))
             subjects = [row[0] for row in c.fetchall()]
         except ValueError:
             pass
@@ -364,7 +459,8 @@ def admin_attendance():
     students_list = []
     attendance_records = []
     if class_id_int:
-        c.execute("SELECT DISTINCT subject FROM timetable WHERE class_id=?", (class_id_int,))
+        # Fetch subjects from subjects table
+        c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (class_id_int,))
         subjects = [s[0] for s in c.fetchall()]
         c.execute("SELECT id, usn, name FROM students WHERE class_id=? ORDER BY name", (class_id_int,))
         students_list = c.fetchall()
@@ -440,8 +536,8 @@ def student_attendance_history():
         # Get students
         c.execute("SELECT id, usn, name FROM students WHERE class_id=? ORDER BY name", (selected_class_id,))
         filtered_students = c.fetchall()
-        # Get subjects for this class
-        c.execute("SELECT DISTINCT subject FROM timetable WHERE class_id=?", (selected_class_id,))
+        # Get subjects for this class from subjects table
+        c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (selected_class_id,))
         subjects = [row[0] for row in c.fetchall()]
 
     if selected_student_id:
@@ -581,6 +677,108 @@ def download_attendance():
         writer.writerow(rec)
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = f"attachment; filename=attendance_report.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
+
+@app.route("/admin/download_student_history")
+def download_student_history():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    student_id = request.args.get("student_id")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    subject = request.args.get("subject")
+    
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    # Get student info
+    c.execute("SELECT usn, name FROM students WHERE id=?", (student_id,))
+    student_info = c.fetchone()
+    
+    query = """SELECT attendance.subject, attendance.date, attendance.status, attendance.hour
+               FROM attendance
+               WHERE student_id=?"""
+    params = [student_id]
+    
+    if subject:
+        query += " AND subject=?"
+        params.append(subject)
+    
+    if start_date and end_date:
+        query += " AND date BETWEEN ? AND ?"
+        params.extend([start_date, end_date])
+    elif start_date:
+        query += " AND date >= ?"
+        params.append(start_date)
+    elif end_date:
+        query += " AND date <= ?"
+        params.append(end_date)
+    
+    query += " ORDER BY date DESC, hour ASC"
+    c.execute(query, params)
+    records = c.fetchall()
+    conn.close()
+    
+    # Create CSV
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["Subject", "Date", "Status", "Hour"])
+    for rec in records:
+        writer.writerow(rec)
+    
+    output = make_response(si.getvalue())
+    filename = f"attendance_{student_info[0] if student_info else 'student'}.csv"
+    output.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    output.headers["Content-type"] = "text/csv"
+    return output
+
+@app.route("/admin/download_class_history")
+def download_class_history():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    class_id = request.args.get("class_id")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    subject = request.args.get("subject")
+    
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    query = """SELECT students.usn, students.name, attendance.subject, attendance.date, attendance.status, attendance.hour
+               FROM attendance
+               JOIN students ON attendance.student_id = students.id
+               WHERE students.class_id=?"""
+    params = [class_id]
+    
+    if subject:
+        query += " AND attendance.subject=?"
+        params.append(subject)
+    
+    if start_date and end_date:
+        query += " AND attendance.date BETWEEN ? AND ?"
+        params.extend([start_date, end_date])
+    elif start_date:
+        query += " AND attendance.date >= ?"
+        params.append(start_date)
+    elif end_date:
+        query += " AND attendance.date <= ?"
+        params.append(end_date)
+    
+    query += " ORDER BY attendance.date DESC, students.name ASC, attendance.hour ASC"
+    c.execute(query, params)
+    records = c.fetchall()
+    conn.close()
+    
+    # Create CSV
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["USN", "Name", "Subject", "Date", "Status", "Hour"])
+    for rec in records:
+        writer.writerow(rec)
+    
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = f"attachment; filename=class_attendance_history.csv"
     output.headers["Content-type"] = "text/csv"
     return output
 

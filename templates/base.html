@@ -7,48 +7,57 @@
     <title>{% block title %}Attendance System{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body {
-            background-image: url("{{ url_for('static', filename='images/dashboard.png') }}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            min-height: 100vh;
-        }
-
-        /* Ensure content is readable over background */
-        .container {
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Add a subtle overlay to improve text contrast if needed, 
-           but user asked for the image specifically. 
-           We'll rely on the cards having backgrounds (which they do in style.css) */
-    </style>
 </head>
 
 <body>
 
     <nav class="navbar">
-        <div class="navbar-brand">Attendance System</div>
+        <div class="navbar-brand">
+            <i class="fas fa-check-circle" style="margin-right: 8px;"></i> Attendance
+        </div>
         <div class="navbar-nav">
-            <a href="/dashboard">Dashboard</a>
-            <a href="/logout">Logout</a>
+            <a href="/dashboard"><i class="fas fa-th-large"></i> Dashboard</a>
+            <a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </div>
     </nav>
 
-    <div class="container">
+    <div class="container mt-4">
         {% with messages = get_flashed_messages() %}
         {% if messages %}
         {% for message in messages %}
-        <div class="alert alert-success">{{ message }}</div>
+        <div class="alert alert-success">
+            <i class="fas fa-info-circle"></i> {{ message }}
+        </div>
         {% endfor %}
         {% endif %}
         {% endwith %}
 
+        <!-- Flash Messages -->
+        <div class="flash-container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close-btn" onclick="this.parentElement.remove()">&times;</button>
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+        </div>
+
         {% block content %}{% endblock %}
+
+        <script>
+            // Auto-dismiss alerts after 5 seconds
+            setTimeout(function () {
+                const alerts = document.querySelectorAll('.alert');
+                alerts.forEach(alert => {
+                    alert.style.opacity = '0';
+                    setTimeout(() => alert.remove(), 500);
+                });
+            }, 5000);
+        </script>
     </div>
 
 </body>

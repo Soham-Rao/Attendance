@@ -41,6 +41,12 @@ def init_db():
         hour INTEGER
     )''')
 
+    c.execute('''CREATE TABLE IF NOT EXISTS subjects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        class_id INTEGER,
+        name TEXT
+    )''')
+
     # Insert default admin if none exists
     c.execute("SELECT * FROM admin")
     if not c.fetchone():

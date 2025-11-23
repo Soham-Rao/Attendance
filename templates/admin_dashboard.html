@@ -3,32 +3,46 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<h2>Admin Dashboard</h2>
+<div class="mb-4">
+    <h2>Admin Dashboard</h2>
+    <p class="text-muted">Manage students, attendance, and classes</p>
+</div>
 
 <div class="dashboard-grid">
     <a href="/classes" class="card dashboard-card">
         <i class="fas fa-chalkboard-teacher"></i>
         <h3>Manage Classes</h3>
+        <p class="text-muted text-center" style="font-size: 0.9rem;">Add or edit class schedules</p>
+    </a>
+
+    <a href="/subjects" class="card dashboard-card">
+        <i class="fas fa-book"></i>
+        <h3>Manage Subjects</h3>
+        <p class="text-muted text-center" style="font-size: 0.9rem;">Add or remove subjects</p>
     </a>
 
     <a href="/add_student_form" class="card dashboard-card">
         <i class="fas fa-user-plus"></i>
         <h3>Add Student</h3>
+        <p class="text-muted text-center" style="font-size: 0.9rem;">Register new students</p>
     </a>
 
     <a href="/mark_attendance" class="card dashboard-card">
         <i class="fas fa-camera"></i>
         <h3>Mark Attendance</h3>
+        <p class="text-muted text-center" style="font-size: 0.9rem;">Face recognition attendance</p>
     </a>
 
     <a href="/admin/attendance" class="card dashboard-card">
         <i class="fas fa-clipboard-list"></i>
         <h3>View/Edit Attendance</h3>
+        <p class="text-muted text-center" style="font-size: 0.9rem;">Manual attendance records</p>
     </a>
 
     <a href="/admin/student_attendance_history" class="card dashboard-card">
         <i class="fas fa-history"></i>
         <h3>Student History</h3>
+        <p class="text-muted text-center" style="font-size: 0.9rem;">View past attendance logs</p>
     </a>
 </div>
 {% endblock %}
