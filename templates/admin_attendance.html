@@ -71,51 +71,54 @@
         <input type="hidden" name="date" value="{{ selected_date or '' }}">
         <input type="hidden" name="student_id" value="{{ selected_student or '' }}">
 
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>USN</th>
-                    <th>Name</th>
-                    <th>Subject</th>
-                    <th>Hour</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th>Comments</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for record in attendance_records %}
-                <tr {% if record[0] in pending_ids %}class="pending-change" {% endif %}>
-                    <td>{{ record[0] }}</td>
-                    <td>{{ record[1] }}</td>
-                    <td>{{ record[2] }}</td>
-                    <td>{{ record[3] }}</td>
-                    <td>{{ record[4] }}</td>
-                    <td>{{ record[5] }}</td>
-                    <td>
-                        <select name="status_{{ record[0] }}" class="status-select"
-                            data-original-status="{{ record[6] }}" data-row-id="{{ record[0] }}"
-                            onchange="highlightChangedRow(this)" style="padding: 5px; width: auto;">
-                            <option value="Present" {% if record[6]=='Present' %}selected{% endif %}>Present</option>
-                            <option value="Absent" {% if record[6]=='Absent' %}selected{% endif %}>Absent</option>
-                        </select>
-                    </td>
-                    <td>
-                        {% if session['role'] == 'teacher' %}
-                        <textarea name="individual_{{ record[0] }}" class="individual-comment-input"
-                            placeholder="Individual comment (optional)" rows="2" disabled
-                            style="width: 100%; padding: 5px; font-size: 0.9rem; resize: vertical;"></textarea>
-                        {% elif session['role'] == 'admin' %}
-                        <button type="submit" formaction="/delete_attendance/{{ record[0] }}" class="btn btn-danger"
-                            onclick="return confirm('⚠️ Are you sure you want to delete this attendance record?\n\nStudent: {{ record[2] }}\nSubject: {{ record[3] }}\nDate: {{ record[5] }}\n\nThis action cannot be undone!');"
-                            style="padding: 5px 10px; font-size: 14px;">Delete</button>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>USN</th>
+                        <th>Name</th>
+                        <th>Subject</th>
+                        <th>Hour</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in attendance_records %}
+                    <tr {% if record[0] in pending_ids %}class="pending-change" {% endif %}>
+                        <td>{{ record[0] }}</td>
+                        <td>{{ record[1] }}</td>
+                        <td>{{ record[2] }}</td>
+                        <td>{{ record[3] }}</td>
+                        <td>{{ record[4] }}</td>
+                        <td>{{ record[5] }}</td>
+                        <td>
+                            <select name="status_{{ record[0] }}" class="status-select"
+                                data-original-status="{{ record[6] }}" data-row-id="{{ record[0] }}"
+                                onchange="highlightChangedRow(this)" style="padding: 5px; width: auto;">
+                                <option value="Present" {% if record[6]=='Present' %}selected{% endif %}>Present
+                                </option>
+                                <option value="Absent" {% if record[6]=='Absent' %}selected{% endif %}>Absent</option>
+                            </select>
+                        </td>
+                        <td>
+                            {% if session['role'] == 'teacher' %}
+                            <textarea name="individual_{{ record[0] }}" class="individual-comment-input"
+                                placeholder="Individual comment (optional)" rows="2" disabled
+                                style="width: 100%; padding: 5px; font-size: 0.9rem; resize: vertical;"></textarea>
+                            {% elif session['role'] == 'admin' %}
+                            <button type="submit" formaction="/delete_attendance/{{ record[0] }}" class="btn btn-danger"
+                                onclick="return confirm('⚠️ Are you sure you want to delete this attendance record?\n\nStudent: {{ record[2] }}\nSubject: {{ record[3] }}\nDate: {{ record[5] }}\n\nThis action cannot be undone!');"
+                                style="padding: 5px 10px; font-size: 14px;">Delete</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
         {% if session['role'] == 'teacher' %}
         <div style="margin-top: 20px;">

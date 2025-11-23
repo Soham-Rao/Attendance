@@ -3,9 +3,9 @@
 {% block title %}Live Attendance{% endblock %}
 
 {% block content %}
-<div class="container" style="display: flex; gap: 20px; margin-top: 20px; height: calc(100vh - 100px);">
+<div class="container live-container">
     <!-- Video Section -->
-    <div style="flex: 3; display: flex; flex-direction: column;">
+    <div class="live-video-section">
         <div class="card"
             style="flex: 1; padding: 0; overflow: hidden; background: #000; position: relative; display: flex; justify-content: center; align-items: center; border-radius: var(--radius-md);">
             <video id="video" autoplay playsinline style="display: none;"></video>
@@ -18,7 +18,7 @@
     </div>
 
     <!-- Sidebar -->
-    <div style="flex: 1; min-width: 300px; display: flex; flex-direction: column;">
+    <div class="live-sidebar-section">
         <div class="card" style="height: 100%; display: flex; flex-direction: column; padding: 1.5rem;">
             <h3 class="mb-3" style="border-bottom: 2px solid #f1f2f6; padding-bottom: 10px;">{{ subject }}</h3>
 
