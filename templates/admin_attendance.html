@@ -105,12 +105,12 @@
                     <th>Hour</th>
                     <th>Date</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    <th>Comments</th>
                 </tr>
             </thead>
             <tbody>
                 {% for record in attendance_records %}
-                <tr>
+                <tr {% if record[0] in pending_ids %}class="pending-change"{% endif %}>
                     <td>{{ record[0] }}</td>
                     <td>{{ record[1] }}</td>
                     <td>{{ record[2] }}</td>
@@ -118,13 +118,19 @@
                     <td>{{ record[4] }}</td>
                     <td>{{ record[5] }}</td>
                     <td>
-                        <select name="status_{{ record[0] }}" style="padding: 5px; width: auto;">
+                        <select name="status_{{ record[0] }}" class="status-select"
+                            data-original-status="{{ record[6] }}" data-row-id="{{ record[0] }}"
+                            onchange="highlightChangedRow(this)" style="padding: 5px; width: auto;">
                             <option value="Present" {% if record[6]=='Present' %}selected{% endif %}>Present</option>
                             <option value="Absent" {% if record[6]=='Absent' %}selected{% endif %}>Absent</option>
                         </select>
                     </td>
                     <td>
-                        {% if session['role'] == 'admin' %}
+                        {% if session['role'] == 'teacher' %}
+                        <textarea name="individual_{{ record[0] }}" class="individual-comment-input"
+                            placeholder="Individual comment (optional)" rows="2" disabled
+                            style="width: 100%; padding: 5px; font-size: 0.9rem; resize: vertical;"></textarea>
+                        {% elif session['role'] == 'admin' %}
                         <button type="submit" formaction="/delete_attendance/{{ record[0] }}" class="btn btn-danger"
                             style="padding: 5px 10px; font-size: 14px;">Delete</button>
                         {% endif %}
@@ -137,10 +143,10 @@
         {% if session['role'] == 'teacher' %}
         <div style="margin-top: 20px;">
             <div style="margin-bottom: 15px;">
-                <label>
+                <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
                     <input type="checkbox" id="use_same_comment" name="use_same_comment" checked
-                        onchange="toggleIndividualComments()">
-                    Use same comment for all changes
+                        onchange="toggleIndividualComments()" style="margin: 0;">
+                    <span>Use same comment for all changes</span>
                 </label>
             </div>
 
@@ -149,19 +155,10 @@
                 placeholder="Explain why you are changing the attendance status..." rows="3"
                 style="width: 100%; margin-top: 5px;"></textarea>
 
-            <div id="individual_comments_section" style="display: none; margin-top: 20px;">
-                <hr style="margin: 20px 0;">
-                <h4 style="margin-bottom: 15px;">Individual Comments (Optional)</h4>
-                {% for record in attendance_records %}
-                <div class="individual-comment-field"
-                    style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
-                    <label style="font-weight: bold;">{{ record[2] }} ({{ record[1] }}) - {{ record[3] }} - Hour {{
-                        record[ 4] }}</label>
-                    <textarea name="individual_{{ record[0] }}" class="form-control"
-                        placeholder="Optional specific comment for this change..." rows="2"
-                        style="width: 100%; margin-top: 5px;"></textarea>
-                </div>
-                {% endfor %}
+            <div
+                style="margin-top: 10px; padding: 10px; background: #f0f8ff; border-left: 3px solid #007bff; border-radius: 3px;">
+                <small style="color: #6c757d;"><i class="fas fa-info-circle"></i> <strong>Tip:</strong> Uncheck the box
+                    above to add individual comments per record in the Comments column.</small>
             </div>
         </div>
         <div style="margin-top: 20px; text-align: right;">
@@ -171,8 +168,23 @@
         <script>
             function toggleIndividualComments() {
                 const checkbox = document.getElementById('use_same_comment');
-                const section = document.getElementById('individual_comments_section');
-                section.style.display = checkbox.checked ? 'none' : 'block';
+                const textareas = document.querySelectorAll('.individual-comment-input');
+                textareas.forEach(textarea => {
+                    textarea.disabled = checkbox.checked;
+                    textarea.style.backgroundColor = checkbox.checked ? '#e9ecef' : '#ffffff';
+                });
+            }
+
+            function highlightChangedRow(selectElement) {
+                const row = selectElement.closest('tr');
+                const originalStatus = selectElement.dataset.originalStatus;
+                const currentStatus = selectElement.value;
+
+                if (originalStatus !== currentStatus) {
+                    row.classList.add('pending-change');
+                } else {
+                    row.classList.remove('pending-change');
+                }
             }
         </script>
         {% else %}
@@ -187,4 +199,16 @@
     <i class="fas fa-info-circle"></i> No attendance records found for the selected filters.
 </div>
 {% endif %}
+
+<style>
+    .pending-change {
+        background-color: #fff3cd !important;
+        border-left: 4px solid #ff9800;
+        transition: all 0.3s ease;
+    }
+
+    .pending-change td {
+        font-weight: 500;
+    }
+</style>
 {% endblock %}

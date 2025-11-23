@@ -691,6 +691,15 @@ def admin_attendance():
         c.execute(query, params)
 
         attendance_records = c.fetchall()
+        
+        # Get list of attendance IDs that have pending changes
+        c.execute("""
+            SELECT DISTINCT attendance_id 
+            FROM pending_attendance_changes 
+            WHERE attendance_id IN (SELECT id FROM attendance WHERE student_id IN 
+                (SELECT id FROM students WHERE class_id=?))
+        """, (class_id_int,))
+        pending_ids = {row[0] for row in c.fetchall()}
 
     conn.close()
 
@@ -704,7 +713,8 @@ def admin_attendance():
         selected_subject=subject,
         selected_hour=hour,
         selected_date=date,
-        selected_student=int(student_id) if student_id else None
+        selected_student=int(student_id) if student_id else None,
+        pending_ids=pending_ids if class_id_int else set()
     )
 
 @app.route("/delete_attendance/<int:att_id>", methods=["POST"])
