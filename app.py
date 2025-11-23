@@ -566,6 +566,15 @@ def admin_attendance():
                         recalculate_chain(c, att_id)
                         changes_made = True
                     elif role == "teacher":
+                        # Check if there's already a pending request for this attendance record
+                        c.execute("SELECT id, request_role FROM pending_attendance_changes WHERE attendance_id=?", (att_id,))
+                        existing_request = c.fetchone()
+                        
+                        if existing_request:
+                            requester_type = "student" if existing_request[1] == "student" else "another teacher"
+                            flash(f"⚠️ A change request for this record is already pending from {requester_type}. Please wait for admin action.", "warning")
+                            continue  # Skip this record
+                        
                         # Teacher requests change
                         teacher_id = session["username"]
                         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1278,27 +1287,29 @@ def student_request_change():
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
     
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Check if there's already a pending request for this attendance record
+    c.execute("SELECT id, request_role FROM pending_attendance_changes WHERE attendance_id=?", (attendance_id,))
+    existing_request = c.fetchone()
     
-    # Check if request already exists
-    c.execute("SELECT id FROM pending_attendance_changes WHERE attendance_id=? AND requested_by=?", (attendance_id, usn))
-    if c.fetchone():
-        flash("You have already submitted a request for this record.", "warning")
-    else:
-        c.execute("""
-            INSERT INTO pending_attendance_changes 
-            (attendance_id, new_status, requested_by, timestamp, comment, request_role, document_path)
-            VALUES (?, ?, ?, ?, ?, 'student', ?)
-        """, (attendance_id, 'Present', usn, timestamp, reason, document_path))
-        conn.commit()
-        flash("Request submitted successfully!", "success")
-        
+    if existing_request:
+        conn.close()
+        requester_type = "a teacher" if existing_request[1] == "teacher" else "another student"
+        flash(f"⚠️ A change request for this record is already pending from {requester_type}. Please wait for admin action.", "warning")
+        return redirect("/dashboard")
+    
+    # Insert pending change request
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c.execute("""
+        INSERT INTO pending_attendance_changes 
+        (attendance_id, new_status, requested_by, timestamp, comment, request_role, document_path)
+        VALUES (?, ?, ?, ?, ?, 'student', ?)
+    """, (attendance_id, 'Present', usn, timestamp, reason, document_path))
+    
+    conn.commit()
     conn.close()
-    # Redirect back to the graph page. We need the subject.
-    # Since we don't have subject easily available here without querying, 
-    # we can use the referrer or just redirect to dashboard.
-    # Better: Query subject from attendance_id
-    return redirect(request.referrer or "/dashboard")
+    
+    flash("Change request submitted successfully! Waiting for admin approval.", "success")
+    return redirect("/dashboard")
 
 @app.route("/approve_change/<int:change_id>", methods=["POST"])
 def approve_change(change_id):
