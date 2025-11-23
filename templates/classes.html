@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Classes{% endblock %}
+
+{% block content %}
+<h2>Manage Classes</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <h3>Add New Class</h3>
+            <form action="/add_class" method="POST">
+                <div class="form-group">
+                    <label for="class_name">Class Name:</label>
+                    <input type="text" id="class_name" name="class_name" required placeholder="e.g., CSE-A">
+                </div>
+                <button type="submit" class="btn btn-success">Add Class</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <h3>Existing Classes</h3>
+            {% if classes %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Class Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cls in classes %}
+                    <tr>
+                        <td>{{ cls[0] }}</td>
+                        <td>{{ cls[1] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No classes found.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

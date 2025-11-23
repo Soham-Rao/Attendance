@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Timetable{% endblock %}
+
+{% block content %}
+<h2>Edit Timetable Entry</h2>
+
+<div class="card" style="max-width: 500px; margin: 0 auto;">
+    <form action="/edit_timetable/{{ tid }}" method="POST">
+        <input type="hidden" name="class_id" value="{{ class_id }}">
+
+        <div class="form-group">
+            <label for="subject">Subject:</label>
+            <input type="text" id="subject" name="subject" value="{{ subject }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="start_time">Start Time:</label>
+            <input type="time" id="start_time" name="start_time" value="{{ start_time }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="end_time">End Time:</label>
+            <input type="time" id="end_time" name="end_time" value="{{ end_time }}" required>
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <a href="/timetable?class_id={{ class_id }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Update</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

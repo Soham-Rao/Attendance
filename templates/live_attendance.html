@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Live Attendance{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Video Section -->
+    <div class="col-md-9">
+        <div class="card"
+            style="padding: 0; overflow: hidden; background: #000; position: relative; display: flex; justify-content: center; align-items: center; min-height: 480px;">
+            <video id="video" autoplay playsinline style="display: none;"></video>
+            <canvas id="canvas" style="max-width: 100%; max-height: 100%;"></canvas>
+            <div id="status-overlay"
+                style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: white; padding: 5px 10px; border-radius: 4px; pointer-events: none;">
+                Initializing...</div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <h3 class="mb-3">{{ subject }}</h3>
+
+            <div class="alert alert-success mb-3" id="counter-box">
+                <strong>Present:</strong> <span id="present-count" style="font-size: 1.2em;">0</span> / {{
+                total_students }}
+            </div>
+
+            <div class="alert alert-info mb-3" id="last-detected-box">
+                <strong>Last:</strong> <span id="last-detected-name">None</span>
+            </div>
+
+            <h4 class="mb-2">Detected:</h4>
+            <div id="detected-list-container"
+                style="flex-grow: 1; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #fafafa; max-height: 300px;">
+                <ul id="student-list" style="list-style: none; padding: 0; margin: 0;">
+                    <!-- List items will go here -->
+                </ul>
+            </div>
+
+            <div class="mt-3">
+                <button id="stop-btn" onclick="stopAttendance()" class="btn btn-danger w-100">Stop & Submit</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const statusOverlay = document.getElementById('status-overlay');
+    const studentList = document.getElementById('student-list');
+    const presentCountSpan = document.getElementById('present-count');
+    const lastDetectedName = document.getElementById('last-detected-name');
+
+    const CLASS_ID = "{{ class_id }}";
+    const SUBJECT = "{{ subject }}";
+    const HOUR = "{{ hour }}";
+    const EXISTING_PRESENT_DATA = {{ existing_present_data | tojson }};
+
+    let isRunning = true;
+    let detectedStudents = new Set(); // Store IDs of detected students
+    let lastDetectedId = null;
+    let lastTikTime = {}; // Map student_id -> timestamp
+
+    // Initialize with existing data
+    if (EXISTING_PRESENT_DATA && EXISTING_PRESENT_DATA.length > 0) {
+        EXISTING_PRESENT_DATA.forEach(student => {
+            detectedStudents.add(student.id);
+            const li = document.createElement('li');
+            li.innerHTML = `<span style="color: #2ecc71; margin-right: 10px;">✔</span> ${student.name}`;
+            li.style.padding = "8px 10px";
+            li.style.borderBottom = "1px solid #eee";
+            studentList.prepend(li);
+        });
+        presentCountSpan.innerText = detectedStudents.size;
+    }
+
+    // --- Audio ---
+    const dingAudio = new Audio('/static/sounds/ding.wav');
+    const tikAudio = new Audio('/static/sounds/tik.wav');
+
+    function playDing() {
+        dingAudio.currentTime = 0;
+        dingAudio.play().catch(e => console.log("Audio play failed:", e));
+    }
+
+    function playTik() {
+        tikAudio.currentTime = 0;
+        tikAudio.play().catch(e => console.log("Audio play failed:", e));
+    }
+
+    // --- Camera & Logic ---
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                statusOverlay.innerText = "Camera Active";
+                processFrame();
+                animationLoop();
+            };
+        } catch (err) {
+            statusOverlay.innerText = "Error: " + err.message;
+            console.error(err);
+        }
+    }
+
+    async function processFrame() {
+        if (!isRunning) return;
+
+        const imageData = canvas.toDataURL('image/jpeg', 0.5);
+
+        try {
+            const response = await fetch('/api/recognize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image: imageData,
+                    class_id: CLASS_ID
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.results) {
+                lastResults = data.results;
+                lastResultTime = Date.now();
+                handleDetections(data.results);
+            }
+
+        } catch (err) {
+            console.error("API Error:", err);
+        }
+
+        if (isRunning) setTimeout(processFrame, 400);
+    }
+
+    function handleDetections(results) {
+        results.forEach(res => {
+            if (!res.student_id) return; // Ignore unknown
+
+            const now = Date.now();
+
+            if (!detectedStudents.has(res.student_id)) {
+                // NEW STUDENT
+                detectedStudents.add(res.student_id);
+
+                // Update UI
+                presentCountSpan.innerText = detectedStudents.size;
+                lastDetectedName.innerText = res.name + " ✔";
+
+                const li = document.createElement('li');
+                li.innerHTML = `<span style="color: #2ecc71; margin-right: 10px;">✔</span> ${res.name}`;
+                li.style.padding = "8px 10px";
+                li.style.borderBottom = "1px solid #eee";
+                studentList.prepend(li); // Add to top
+
+                // Play Ding
+                playDing();
+            } else {
+                // ALREADY DETECTED
+                // Play Tik if cooldown passed (e.g., 3 seconds)
+                if (!lastTikTime[res.student_id] || (now - lastTikTime[res.student_id] > 3000)) {
+                    playTik();
+                    lastTikTime[res.student_id] = now;
+                    // Optional: Update last detected name even if already in list, to show they are being seen *now*
+                    lastDetectedName.innerText = res.name + " ✔";
+                }
+            }
+        });
+    }
+
+    let lastResults = [];
+    let lastResultTime = 0;
+    const RESULT_TIMEOUT = 2000;
+
+    function animationLoop() {
+        if (!isRunning) return;
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        if (Date.now() - lastResultTime > RESULT_TIMEOUT) {
+            lastResults = [];
+        }
+
+        lastResults.forEach(res => {
+            const [top, right, bottom, left] = res.box;
+            const name = res.name;
+            const isKnown = !!res.student_id;
+            const color = isKnown ? "#00FF00" : "#FF0000";
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(left, top, right - left, bottom - top);
+
+            ctx.fillStyle = color;
+            ctx.font = "bold 18px Arial";
+            ctx.fillText(name, left, top - 10);
+        });
+
+        requestAnimationFrame(animationLoop);
+    }
+
+    async function stopAttendance() {
+        isRunning = false;
+        video.srcObject.getTracks().forEach(track => track.stop());
+        statusOverlay.innerText = "Submitting...";
+
+        try {
+            const response = await fetch('/api/submit_attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    class_id: CLASS_ID,
+                    subject: SUBJECT,
+                    hour: HOUR,
+                    student_ids: Array.from(detectedStudents)
+                })
+            });
+
+            const res = await response.json();
+            if (res.status === 'success') {
+                alert("Attendance marked successfully!");
+                window.location.href = "/dashboard";
+            } else {
+                alert("Error: " + res.message);
+            }
+
+        } catch (err) {
+            alert("Error: " + err.message);
+        }
+    }
+
+    startCamera();
+</script>
+{% endblock %}

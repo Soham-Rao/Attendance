@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Student Attendance History{% endblock %}
+
+{% block content %}
+{% set bg_image = url_for('static', filename='images/dashboard.png') %}
+<div class="container-fluid"
+    style="background-image: url('{{ bg_image }}'); background-size: cover; background-position: center; min-height: 100vh; background-attachment: fixed; padding: 40px; display: flex; justify-content: center; align-items: center;">
+    <div class="attendance-container">
+        <h2>Student Attendance History</h2>
+
+        <!-- Filter Form -->
+        <form method="GET" action="/admin/student_attendance_history" class="mb-4">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="class_id">Select Class</label>
+                        <select name="class_id" id="class_id" required onchange="this.form.submit()">
+                            <option value="">--Select Class--</option>
+                            {% for cid, cname in classes %}
+                            <option value="{{ cid }}" {% if selected_class_id==cid %}selected{% endif %}>{{ cname }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="subject">Select Subject</label>
+                        <select name="subject" id="subject" {% if not selected_class_id %}disabled{% endif %}
+                            onchange="this.form.submit()">
+                            <option value="">--All Subjects--</option>
+                            {% for subj in subjects %}
+                            <option value="{{ subj }}" {% if selected_subject==subj %}selected{% endif %}>{{ subj }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="student_id">Select Student</label>
+                        <select name="student_id" id="student_id" {% if not selected_class_id %}disabled{% endif %}
+                            onchange="this.form.submit()">
+                            <option value="">--All Students in Class--</option>
+                            {% for sid, usn, name in filtered_students %}
+                            <option value="{{ sid }}" {% if selected_student_id==sid %}selected{% endif %}>{{ name }}
+                                ({{ usn }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="start_date">Start Date</label>
+                        <input type="date" name="start_date" value="{{ start_date or '' }}" class="date-input">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="end_date">End Date</label>
+                        <input type="date" name="end_date" value="{{ end_date or '' }}" class="date-input">
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-3">
+                <button type="submit" class="btn-primary">Filter Records</button>
+            </div>
+        </form>
+
+        {% if attendance_records %}
+        <div class="attendance-header">
+            {% if selected_student_id %}
+            <h3>Attendance for {{ student_info[1] }} ({{ student_info[0] }})</h3>
+            <p class="text-muted mb-4">Showing attendance records from {{ start_date or 'All Dates' }} to {{ end_date or
+                'All Dates' }}</p>
+            <div class="stats-container mb-4">
+                <div class="stat-card">
+                    <div class="stat-value">{{ total_records }}</div>
+                    <div class="stat-label">Total Records</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ present_count }}</div>
+                    <div class="stat-label">Present</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ absent_count }}</div>
+                    <div class="stat-label">Absent</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ attendance_percentage }}%</div>
+                    <div class="stat-label">Overall Rate</div>
+                </div>
+            </div>
+
+            {% if subject_stats %}
+            <h4 class="mt-4">Subject-wise Statistics</h4>
+            <div class="subject-stats-container mt-3">
+                {% for subject, stats in subject_stats.items() %}
+                <div class="subject-stat-card mb-3">
+                    <div class="subject-header">
+                        <h6 class="mb-0">{{ subject }}</h6>
+                    </div>
+                    <div class="subject-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Total:</span>
+                            <span class="stat-value">{{ stats.total }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Present:</span>
+                            <span class="stat-value">{{ stats.present }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Absent:</span>
+                            <span class="stat-value">{{ stats.absent }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Attendance Rate:</span>
+                            <span class="stat-value">{{ stats.percentage }}%</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <a href="/admin/download_student_history?student_id={{ selected_student_id }}&start_date={{ start_date }}&end_date={{ end_date }}"
+                class="download-link mb-4">
+                Download Attendance History CSV
+            </a>
+            {% else %}
+            {% if selected_class_id %}
+            <h3>Attendance for Class</h3>
+            <p class="text-muted mb-4">Showing attendance records from {{ start_date or 'All Dates' }} to {{ end_date or
+                'All Dates' }}</p>
+            <a href="/admin/download_class_history?class_id={{ selected_class_id }}&start_date={{ start_date }}&end_date={{ end_date }}"
+                class="download-link mb-4">
+                Download Class Attendance History CSV
+            </a>
+            {% endif %}
+            {% endif %}
+        </div>
+
+        <div class="attendance-table-container">
+            <table class="attendance-table">
+                <thead>
+                    {% if selected_student_id %}
+                    <tr>
+                        <th>Subject</th>
+                        <th>Date</th>
+                        <th>Hour</th>
+                        <th>Status</th>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <th>USN</th>
+                        <th>Name</th>
+                        <th>Subject</th>
+                        <th>Date</th>
+                        <th>Hour</th>
+                        <th>Status</th>
+                    </tr>
+                    {% endif %}
+                </thead>
+                <tbody>
+                    {% for row in attendance_records %}
+                    {% if selected_student_id %}
+                    <tr>
+                        <td>{{ row[0] }}</td>
+                        <td>{{ row[1] }}</td>
+                        <td>{{ row[3] }}</td>
+                        <td class="{% if row[2] == 'Present' %}status-present{% else %}status-absent{% endif %}">{{
+                            row[2] }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td>{{ row[0] }}</td>
+                        <td>{{ row[1] }}</td>
+                        <td>{{ row[2] }}</td>
+                        <td>{{ row[3] }}</td>
+                        <td>{{ row[5] }}</td>
+                        <td class="{% if row[4] == 'Present' %}status-present{% else %}status-absent{% endif %}">{{
+                            row[4] }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="error-message">
+            {% if selected_class_id %}
+            No attendance records found for the selected filters.
+            {% else %}
+            Please select a class to view attendance records.
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="back-button-container">
+            <a href="/dashboard" class="btn-primary">Back to Admin Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Timetable{% endblock %}
+
+{% block content %}
+<h2>Manage Timetable</h2>
+
+<div class="card">
+    <form method="GET" action="/timetable">
+        <div class="form-group">
+            <label for="class_id">Select Class:</label>
+            <select name="class_id" id="class_id" onchange="this.form.submit()">
+                <option value="">-- Select Class --</option>
+                {% for cls in classes %}
+                <option value="{{ cls[0] }}" {% if selected_class_id==cls[0] %}selected{% endif %}>
+                    {{ cls[1] }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+</div>
+
+{% if selected_class_id %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <h3>Add Entry</h3>
+            <form action="/add_timetable" method="POST">
+                <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+
+                <div class="form-group">
+                    <label for="subject">Subject:</label>
+                    <input type="text" id="subject" name="subject" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="start_time">Start Time:</label>
+                    <input type="time" id="start_time" name="start_time" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="end_time">End Time:</label>
+                    <input type="time" id="end_time" name="end_time" required>
+                </div>
+
+                <button type="submit" class="btn btn-success w-100">Add to Timetable</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <h3>Timetable Entries</h3>
+            {% if timetable %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Subject</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in timetable %}
+                    <tr>
+                        <td>{{ entry[2] }}</td>
+                        <td>{{ entry[3] }}</td>
+                        <td>{{ entry[4] }}</td>
+                        <td>
+                            <a href="/edit_timetable/{{ entry[0] }}" class="btn btn-secondary"
+                                style="padding: 5px 10px; font-size: 14px;">Edit</a>
+                            <form action="/delete_timetable/{{ entry[0] }}" method="POST" style="display:inline;"
+                                onsubmit="return confirm('Delete this entry?');">
+                                <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+                                <button type="submit" class="btn btn-danger"
+                                    style="padding: 5px 10px; font-size: 14px;">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No timetable entries for this class.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

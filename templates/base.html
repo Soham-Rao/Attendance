@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Attendance System{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background-image: url("{{ url_for('static', filename='images/dashboard.png') }}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+
+        /* Ensure content is readable over background */
+        .container {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Add a subtle overlay to improve text contrast if needed, 
+           but user asked for the image specifically. 
+           We'll rely on the cards having backgrounds (which they do in style.css) */
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <div class="navbar-brand">Attendance System</div>
+        <div class="navbar-nav">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-success">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+</body>
+
+</html>
