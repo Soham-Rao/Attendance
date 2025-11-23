@@ -549,6 +549,7 @@ def admin_attendance():
             return redirect(request.url)
 
         changes_made = False
+        use_same_comment = request.form.get("use_same_comment") is not None
         for key, value in request.form.items():
             if key.startswith("status_"):
                 att_id = key.split("_")[1]
@@ -568,11 +569,22 @@ def admin_attendance():
                         # Teacher requests change
                         teacher_id = session["username"]
                         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        # Build final comment with individual comment if provided
+                        if use_same_comment:
+                            final_comment = reason
+                        else:
+                            individual_comment = request.form.get(f"individual_{att_id}", "").strip()
+                            if individual_comment:
+                                final_comment = f"{reason} | {individual_comment}"
+                            else:
+                                final_comment = reason
+                        
                         c.execute("""
                             INSERT INTO pending_attendance_changes 
                             (attendance_id, new_status, requested_by, timestamp, comment, request_role)
                             VALUES (?, ?, ?, ?, ?, 'teacher')
-                        """, (att_id, value, teacher_id, timestamp, reason))
+                        """, (att_id, value, teacher_id, timestamp, final_comment))
                         changes_made = True
 
         conn.commit()

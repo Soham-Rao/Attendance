@@ -60,7 +60,16 @@
                     </td>
                     <td>
                         <div style="max-width: 200px; white-space: normal; font-size: 0.9rem; font-style: italic;">
-                            "{{ change['comment'] }}"
+                            {% set comment_parts = change['comment'].split(' | ', 1) %}
+                            "{{ comment_parts[0] }}"
+                            {% if comment_parts|length > 1 %}
+                            <button class="btn-link" style="padding: 0; font-size: 0.8rem; margin-left: 5px;"
+                                onclick="toggleDetails(this)">+ details</button>
+                            <div class="individual-comment"
+                                style="display:none; margin-top: 5px; padding: 5px; background: #f8f9fa; border-left: 3px solid #007bff;">
+                                <strong>Individual:</strong> {{ comment_parts[1] }}
+                            </div>
+                            {% endif %}
                         </div>
                     </td>
                     <td>
@@ -125,5 +134,30 @@
         background: #eee;
         color: #636e72;
     }
+
+    .btn-link {
+        background: none;
+        border: none;
+        color: #007bff;
+        cursor: pointer;
+        text-decoration: underline;
+    }
+
+    .btn-link:hover {
+        color: #0056b3;
+    }
 </style>
+
+<script>
+    function toggleDetails(button) {
+        const commentDiv = button.nextElementSibling;
+        if (commentDiv.style.display === 'none') {
+            commentDiv.style.display = 'block';
+            button.textContent = '- hide';
+        } else {
+            commentDiv.style.display = 'none';
+            button.textContent = '+ details';
+        }
+    }
+</script>
 {% endblock %}

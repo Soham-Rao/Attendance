@@ -136,14 +136,45 @@
 
         {% if session['role'] == 'teacher' %}
         <div style="margin-top: 20px;">
-            <label>Reason for Change (Required):</label>
-            <textarea name="reason" required class="form-control"
+            <div style="margin-bottom: 15px;">
+                <label>
+                    <input type="checkbox" id="use_same_comment" name="use_same_comment" checked
+                        onchange="toggleIndividualComments()">
+                    Use same comment for all changes
+                </label>
+            </div>
+
+            <label>Group Comment (Required):</label>
+            <textarea name="reason" id="group_comment" required class="form-control"
                 placeholder="Explain why you are changing the attendance status..." rows="3"
                 style="width: 100%; margin-top: 5px;"></textarea>
+
+            <div id="individual_comments_section" style="display: none; margin-top: 20px;">
+                <hr style="margin: 20px 0;">
+                <h4 style="margin-bottom: 15px;">Individual Comments (Optional)</h4>
+                {% for record in attendance_records %}
+                <div class="individual-comment-field"
+                    style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <label style="font-weight: bold;">{{ record[2] }} ({{ record[1] }}) - {{ record[3] }} - Hour {{
+                        record[ 4] }}</label>
+                    <textarea name="individual_{{ record[0] }}" class="form-control"
+                        placeholder="Optional specific comment for this change..." rows="2"
+                        style="width: 100%; margin-top: 5px;"></textarea>
+                </div>
+                {% endfor %}
+            </div>
         </div>
         <div style="margin-top: 20px; text-align: right;">
             <button type="submit" class="btn btn-warning">Request Changes</button>
         </div>
+
+        <script>
+            function toggleIndividualComments() {
+                const checkbox = document.getElementById('use_same_comment');
+                const section = document.getElementById('individual_comments_section');
+                section.style.display = checkbox.checked ? 'none' : 'block';
+            }
+        </script>
         {% else %}
         <div style="margin-top: 20px; text-align: right;">
             <button type="submit" class="btn btn-success">Update Changes</button>
