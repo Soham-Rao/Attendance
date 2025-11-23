@@ -1199,29 +1199,12 @@ def admin_approvals():
     
     # Fetch pending changes with details
     c.execute("""
-        SELECT p.id, p.timestamp, t.name as teacher_name, c.class_name, ta.subject, 
-               s.name as student_name, s.usn, 
-               a.status as old_status, p.new_status, p.comment
-        FROM pending_attendance_changes p
-        JOIN attendance a ON p.attendance_id = a.id
-        JOIN teachers t ON p.requested_by = t.teacher_id
-        JOIN students s ON a.student_id = s.id
-        JOIN classes c ON s.class_id = c.id
-        JOIN teacher_assignments ta ON p.requested_by = ta.teacher_id AND c.id = ta.class_id
-        ORDER BY p.timestamp DESC
-    """)
-    # Note: The join on teacher_assignments is a bit loose, just to get subject if possible, 
-    # but attendance record has subject too. Let's use attendance subject.
-    
-    # Improved query using attendance subject
-    # Improved query using attendance subject and handling both student/teacher requests
-    c.execute("""
         SELECT p.id, p.timestamp, 
                CASE WHEN p.request_role = 'teacher' THEN t.name ELSE s_req.name END as requester_name,
                p.request_role,
                c.class_name, a.subject, 
                s.name as student_name, s.usn, 
-               a.status as old_status, p.new_status, p.comment, p.document_path
+               a.status as old_status, p.new_status, p.comment, p.document_path, a.hour
         FROM pending_attendance_changes p
         JOIN attendance a ON p.attendance_id = a.id
         JOIN students s ON a.student_id = s.id
@@ -1230,8 +1213,9 @@ def admin_approvals():
         LEFT JOIN students s_req ON p.requested_by = s_req.usn
         ORDER BY p.timestamp DESC
     """)
-    
+
     rows = c.fetchall()
+    
     pending_changes = []
     for row in rows:
         pending_changes.append({
@@ -1246,11 +1230,26 @@ def admin_approvals():
             "old_status": row[8],
             "new_status": row[9],
             "comment": row[10],
-            "document_path": row[11]
+            "document_path": row[11],
+            "hour": row[12]
         })
-        
+    
+    # Group changes by requester, timestamp (within same second), and group comment
+    from collections import defaultdict
+    groups = defaultdict(list)
+    
+    for change in pending_changes:
+        # Extract group comment (before | separator)
+        group_comment = change['comment'].split(' | ')[0]
+        # Group by requester, timestamp (first 19 chars = yyyy-mm-dd hh:mm:ss), and group comment
+        key = (change['requester_name'], change['timestamp'][:19], group_comment)
+        groups[key].append(change)
+    
+    # Convert to list of groups
+    grouped_changes = list(groups.values())
+    
     conn.close()
-    return render_template("admin_approvals.html", pending_changes=pending_changes)
+    return render_template("admin_approvals.html", grouped_changes=grouped_changes)
 
 @app.route("/student/request_change", methods=["POST"])
 def student_request_change():
@@ -1346,6 +1345,87 @@ def reject_change(change_id):
     conn.close()
     
     flash("Change request rejected.", "info")
+    return redirect("/admin/approvals")
+
+@app.route("/approve_batch", methods=["POST"])
+def approve_batch():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    
+    change_ids = request.form.getlist("change_ids[]")
+    if not change_ids:
+        flash("No changes selected", "error")
+        return redirect("/admin/approvals")
+    
+    conn = sqlite3.connect('attendance.db')
+    conn.execute("BEGIN IMMEDIATE")  # Exclusive lock for transaction safety
+    c = conn.cursor()
+    
+    try:
+        attendance_ids = []
+        
+        # Collect all attendance IDs and apply changes
+        for change_id in change_ids:
+            c.execute("SELECT attendance_id, new_status FROM pending_attendance_changes WHERE id=?", 
+                      (change_id,))
+            result = c.fetchone()
+            if result:
+                att_id, new_status = result
+                # Update status
+                c.execute("UPDATE attendance SET status=? WHERE id=?", (new_status, att_id))
+                attendance_ids.append(att_id)
+        
+        # Find minimum ID to recalculate from
+        if attendance_ids:
+            min_id = min(attendance_ids)
+            
+            # SINGLE recalculation from minimum ID
+            recalculate_chain(c, min_id)
+        
+        # Remove all from pending
+        placeholders = ",".join("?" * len(change_ids))
+        c.execute(f"DELETE FROM pending_attendance_changes WHERE id IN ({placeholders})", 
+                  change_ids)
+        
+        conn.commit()
+        flash(f"{len(change_ids)} change(s) approved successfully!", "success")
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f"Error during batch approval: {str(e)}", "error")
+    finally:
+        conn.close()
+    
+    return redirect("/admin/approvals")
+
+@app.route("/reject_batch", methods=["POST"])
+def reject_batch():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    
+    change_ids = request.form.getlist("change_ids[]")
+    if not change_ids:
+        flash("No changes selected", "error")
+        return redirect("/admin/approvals")
+    
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    try:
+        # Remove all from pending
+        placeholders = ",".join("?" * len(change_ids))
+        c.execute(f"DELETE FROM pending_attendance_changes WHERE id IN ({placeholders})", 
+                  change_ids)
+        
+        conn.commit()
+        flash(f"{len(change_ids)} change(s) rejected.", "info")
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f"Error during batch rejection: {str(e)}", "error")
+    finally:
+        conn.close()
+    
     return redirect("/admin/approvals")
 
 if __name__ == "__main__":

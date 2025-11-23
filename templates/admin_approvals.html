@@ -21,86 +21,101 @@
 </div>
 
 <div class="card">
-    {% if pending_changes %}
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Requested By</th>
-                    <th>Class / Subject</th>
-                    <th>Student</th>
-                    <th>Old Status</th>
-                    <th>New Status</th>
-                    <th>Reason</th>
-                    <th>Document</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for change in pending_changes %}
-                <tr>
-                    <td>{{ change['timestamp'] }}</td>
-                    <td>
-                        <strong>{{ change['requester_name'] }}</strong><br>
-                        <span class="badge badge-secondary" style="font-size: 0.8em;">{{ change['request_role']|title
-                            }}</span>
-                    </td>
-                    <td>{{ change['class_name'] }} - {{ change['subject'] }}</td>
-                    <td>{{ change['student_name'] }} ({{ change['usn'] }})</td>
-                    <td>
-                        <span class="badge badge-{{ 'success' if change['old_status'] == 'Present' else 'danger' }}">
-                            {{ change['old_status'] }}
-                        </span>
-                    </td>
-                    <td>
-                        <span class="badge badge-{{ 'success' if change['new_status'] == 'Present' else 'danger' }}">
-                            {{ change['new_status'] }}
-                        </span>
-                    </td>
-                    <td>
-                        <div style="max-width: 200px; white-space: normal; font-size: 0.9rem; font-style: italic;">
+    {% if grouped_changes %}
+    {% for group in grouped_changes %}
+    <div class="approval-group" style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+        <div class="group-header" style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #dee2e6;">
+            <h4 style="margin: 0 0 5px 0; color: #495057;">
+                <i class="fas fa-user"></i> <strong>{{ group[0]['requester_name'] }}</strong>
+                <span class="badge badge-secondary" style="font-size: 0.8em; margin-left: 10px;">{{ group[0]['request_role']|title }}</span>
+            </h4>
+            <small style="color: #6c757d;">
+                <i class="fas fa-clock"></i> {{ group[0]['timestamp'] }} · 
+                <i class="fas fa-edit"></i> {{ group|length }} change(s)
+            </small>
+        </div>
+        
+        <div class="group-comment" style="margin-bottom: 15px; padding: 10px; background: #fff; border-left: 3px solid #007bff; border-radius: 4px;">
+            <small style="color: #6c757d;"><strong>Reason:</strong></small>
+            <p style="margin: 5px 0 0 0; font-style: italic;">"{{ group[0]['comment'].split(' | ')[0] }}"</p>
+        </div>
+        
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Class / Subject</th>
+                        <th>Hour</th>
+                        <th>Old Status</th>
+                        <th>New Status</th>
+                        <th>Individual Comment</th>
+                        <th>Document</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for change in group %}
+                    <tr>
+                        <td><strong>{{ change['student_name'] }}</strong><br><small>{{ change['usn'] }}</small></td>
+                        <td>{{ change['class_name'] }} - {{ change['subject'] }}</td>
+                        <td><strong>{{ change['hour'] }}</strong></td>
+                        <td>
+                            <span class="badge badge-{{ 'success' if change['old_status'] == 'Present' else 'danger' }}">
+                                {{ change['old_status'] }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ 'success' if change['new_status'] == 'Present' else 'danger' }}">
+                                {{ change['new_status'] }}
+                            </span>
+                        </td>
+                        <td>
                             {% set comment_parts = change['comment'].split(' | ', 1) %}
-                            "{{ comment_parts[0] }}"
                             {% if comment_parts|length > 1 %}
-                            <button class="btn-link" style="padding: 0; font-size: 0.8rem; margin-left: 5px;"
-                                onclick="toggleDetails(this)">+ details</button>
-                            <div class="individual-comment"
-                                style="display:none; margin-top: 5px; padding: 5px; background: #f8f9fa; border-left: 3px solid #007bff;">
-                                <strong>Individual:</strong> {{ comment_parts[1] }}
+                            <div style="font-size: 0.9rem; font-style: italic; color: #495057;">
+                                {{ comment_parts[1] }}
                             </div>
+                            {% else %}
+                            <span class="text-muted">-</span>
                             {% endif %}
-                        </div>
-                    </td>
-                    <td>
-                        {% if change['document_path'] %}
-                        <a href="{{ url_for('static', filename=change['document_path']) }}" target="_blank"
-                            class="btn btn-sm btn-primary">
-                            <i class="fas fa-file-alt"></i> View
-                        </a>
-                        {% else %}
-                        <span class="text-muted">-</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <div style="display: flex; gap: 5px;">
-                            <form action="/approve_change/{{ change['id'] }}" method="POST">
-                                <button type="submit" class="btn btn-success btn-sm" title="Approve & Rewrite Chain">
-                                    <i class="fas fa-check"></i>
-                                </button>
-                            </form>
-                            <form action="/reject_change/{{ change['id'] }}" method="POST">
-                                <button type="submit" class="btn btn-danger btn-sm" title="Reject">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
+                        </td>
+                        <td>
+                            {% if change['document_path'] %}
+                            <a href="{{ url_for('static', filename=change['document_path']) }}" target="_blank"
+                                class="btn btn-sm btn-primary">
+                                <i class="fas fa-file-alt"></i> View
+                            </a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
+            <form method="POST" action="/approve_batch" style="display:inline">
+                {% for change in group %}
+                <input type="hidden" name="change_ids[]" value="{{ change['id'] }}">
                 {% endfor %}
-            </tbody>
-        </table>
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-check"></i> Approve All ({{ group|length }})
+                </button>
+            </form>
+            
+            <form method="POST" action="/reject_batch" style="display:inline">
+                {% for change in group %}
+                <input type="hidden" name="change_ids[]" value="{{ change['id'] }}">
+                {% endfor %}
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-times"></i> Reject All
+                </button>
+            </form>
+        </div>
     </div>
+    {% endfor %}
     {% else %}
     <div class="alert alert-info text-center">
         No pending change requests found.
