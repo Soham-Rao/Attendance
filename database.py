@@ -81,8 +81,22 @@ def init_db():
         requested_by TEXT,
         timestamp TEXT,
         comment TEXT,
+        request_role TEXT,
+        document_path TEXT,
         FOREIGN KEY(attendance_id) REFERENCES attendance(id)
     )''')
+
+    # Migration: Add request_role column if it doesn't exist
+    try:
+        c.execute("ALTER TABLE pending_attendance_changes ADD COLUMN request_role TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column likely already exists
+
+    # Migration: Add document_path column if it doesn't exist
+    try:
+        c.execute("ALTER TABLE pending_attendance_changes ADD COLUMN document_path TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column likely already exists
 
     # Insert default admin if none exists
     c.execute("SELECT * FROM admin")
