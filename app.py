@@ -48,8 +48,8 @@ def login():
             # Student IDs must match 1bg + 2 digits + letters + 3 digits
             if not STUDENT_ID_PATTERN.fullmatch(username):
                 flash(
-                    "⚠️ Student IDs must start with **1bg**, followed by 2 digits, "
-                    "some letters, then 3 digits (e.g. 1bg12ABC123). "
+                    "⚠️ Student IDs must start with **1BG**, followed by 2 digits, "
+                    "some letters, then 3 digits (e.g. 1BG23CS123). "
                     f"You entered: “{username}”. Please correct it.",
                     "warning"
                 )
@@ -59,7 +59,7 @@ def login():
             # Teacher IDs must match t + 3 digits
             if not TEACHER_ID_PATTERN.fullmatch(username):
                 flash(
-                    "⚠️ Teacher IDs must be in the form **t###** (e.g. t001). "
+                    "⚠️ Teacher IDs must be in the form **T###** (e.g. T001). "
                     f"You entered: “{username}”. Please check the spelling.",
                     "warning"
                 )
@@ -602,6 +602,10 @@ def admin_attendance():
 
         changes_made = False
         use_same_comment = request.form.get("use_same_comment") is not None
+        success_count = 0
+        skipped_student_pending = 0
+        skipped_teacher_pending = 0
+        
         for key, value in request.form.items():
             if key.startswith("status_"):
                 att_id = key.split("_")[1]
@@ -617,14 +621,17 @@ def admin_attendance():
                         # Auto-rehash immediately for Admin
                         recalculate_chain(c, att_id)
                         changes_made = True
+                        success_count += 1
                     elif role == "teacher":
                         # Check if there's already a pending request for this attendance record
                         c.execute("SELECT id, request_role FROM pending_attendance_changes WHERE attendance_id=?", (att_id,))
                         existing_request = c.fetchone()
                         
                         if existing_request:
-                            requester_type = "student" if existing_request[1] == "student" else "another teacher"
-                            flash(f"⚠️ A change request for this record is already pending from {requester_type}. Please wait for admin action.", "warning")
+                            if existing_request[1] == "student":
+                                skipped_student_pending += 1
+                            else:
+                                skipped_teacher_pending += 1
                             continue  # Skip this record
                         
                         # Teacher requests change
@@ -647,6 +654,7 @@ def admin_attendance():
                             VALUES (?, ?, ?, ?, ?, 'teacher')
                         """, (att_id, value, teacher_id, timestamp, final_comment))
                         changes_made = True
+                        success_count += 1
 
         conn.commit()
         conn.close()
@@ -654,11 +662,24 @@ def admin_attendance():
         # Flash success message
         if changes_made:
             if role == "admin":
-                flash("Attendance updated successfully!", "success")
+                flash(f"Updated {success_count} attendance records successfully!", "success")
             else:
-                flash("Change request submitted successfully! Waiting for admin approval.", "success")
+                msg = f"Change request submitted for {success_count} records."
+                if skipped_student_pending > 0:
+                    msg += f" Skipped {skipped_student_pending} (already pending from student)."
+                if skipped_teacher_pending > 0:
+                    msg += f" Skipped {skipped_teacher_pending} (already pending from teacher)."
+                flash(msg, "success")
         else:
-            flash("No changes detected.", "info")
+            if skipped_student_pending > 0 or skipped_teacher_pending > 0:
+                 msg = "No new changes submitted."
+                 if skipped_student_pending > 0:
+                    msg += f" Skipped {skipped_student_pending} records (already pending from student)."
+                 if skipped_teacher_pending > 0:
+                    msg += f" Skipped {skipped_teacher_pending} records (already pending from teacher)."
+                 flash(msg, "warning")
+            else:
+                flash("No changes detected.", "info")
 
         # Preserve filters on redirect
         params = []

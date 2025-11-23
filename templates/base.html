@@ -22,41 +22,137 @@
     </nav>
 
     <div class="container mt-4">
-        {% with messages = get_flashed_messages() %}
-        {% if messages %}
-        {% for message in messages %}
-        <div class="alert alert-success">
-            <i class="fas fa-info-circle"></i> {{ message }}
-        </div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
-
-        <!-- Flash Messages -->
-        <div class="flash-container">
+        <!-- Floating Notification Container -->
+        <div id="notification-container">
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="close-btn" onclick="this.parentElement.remove()">&times;</button>
+            <div class="floating-alert">
+                <div class="alert-content">
+                    {% if messages|length > 1 %}
+                    <strong>Updates:</strong>
+                    <ul style="margin: 5px 0 0 20px; padding: 0;">
+                        {% for category, message in messages %}
+                        <li class="text-{{ category if category != 'message' else 'info' }}">{{ message }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    {% set category, message = messages[0] %}
+                    <i
+                        class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'error' or category == 'danger' %}exclamation-circle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %} text-{{ category if category != 'message' else 'info' }}"></i>
+                    <span>{{ message }}</span>
+                    {% endif %}
+                </div>
+                <button type="button" class="close-btn"
+                    onclick="dismissNotification(this.parentElement)">&times;</button>
+                <div class="progress-bar"></div>
             </div>
-            {% endfor %}
             {% endif %}
             {% endwith %}
         </div>
 
         {% block content %}{% endblock %}
 
+        <style>
+            #notification-container {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+                max-width: 400px;
+                width: 90%;
+            }
+
+            .floating-alert {
+                background: white;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                border-radius: 8px;
+                padding: 15px 20px;
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 15px;
+                animation: slideIn 0.3s ease-out forwards;
+                position: relative;
+                overflow: hidden;
+                border-left: 5px solid #007bff;
+                /* Default accent */
+            }
+
+            .floating-alert .alert-content {
+                flex: 1;
+                font-size: 0.95rem;
+                color: #333;
+            }
+
+            .floating-alert .close-btn {
+                background: none;
+                border: none;
+                font-size: 1.2rem;
+                cursor: pointer;
+                color: #999;
+                padding: 0;
+                line-height: 1;
+            }
+
+            .floating-alert .close-btn:hover {
+                color: #333;
+            }
+
+            .progress-bar {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                height: 3px;
+                background: #007bff;
+                width: 100%;
+                animation: progress 10s linear forwards;
+            }
+
+            @keyframes slideIn {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes fadeOut {
+                to {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+            }
+
+            @keyframes progress {
+                from {
+                    width: 100%;
+                }
+
+                to {
+                    width: 0%;
+                }
+            }
+        </style>
+
         <script>
-            // Auto-dismiss alerts after 5 seconds
-            setTimeout(function () {
-                const alerts = document.querySelectorAll('.alert');
-                alerts.forEach(alert => {
-                    alert.style.opacity = '0';
-                    setTimeout(() => alert.remove(), 500);
-                });
-            }, 5000);
+            function dismissNotification(element) {
+                element.style.animation = 'fadeOut 0.3s ease-in forwards';
+                setTimeout(() => element.remove(), 300);
+            }
+
+            // Auto-dismiss after 10 seconds
+            document.addEventListener('DOMContentLoaded', function () {
+                const alert = document.querySelector('.floating-alert');
+                if (alert) {
+                    setTimeout(() => {
+                        dismissNotification(alert);
+                    }, 10000);
+                }
+            });
         </script>
     </div>
 

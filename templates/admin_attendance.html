@@ -5,30 +5,6 @@
 {% block content %}
 <h2>Manage Attendance Records</h2>
 
-<div class="flash-container">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    {% for category, message in messages %}
-    <div class="alert alert-{{ category if category != 'message' else 'success' }}">
-        {% if category == 'success' %}
-        <i class="fas fa-check-circle"></i>
-        {% elif category == 'error' %}
-        <i class="fas fa-exclamation-circle"></i>
-        {% else %}
-        <i class="fas fa-info-circle"></i>
-        {% endif %}
-
-        <span>{{ message }}</span>
-
-        <button type="button" class="close-btn" onclick="this.parentElement.remove()">
-            <i class="fas fa-times"></i>
-        </button>
-    </div>
-    {% endfor %}
-    {% endif %}
-    {% endwith %}
-</div>
-
 <div class="card">
     <form method="GET" action="/admin/attendance" class="dashboard-grid"
         style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 0;">
@@ -110,7 +86,7 @@
             </thead>
             <tbody>
                 {% for record in attendance_records %}
-                <tr {% if record[0] in pending_ids %}class="pending-change"{% endif %}>
+                <tr {% if record[0] in pending_ids %}class="pending-change" {% endif %}>
                     <td>{{ record[0] }}</td>
                     <td>{{ record[1] }}</td>
                     <td>{{ record[2] }}</td>
