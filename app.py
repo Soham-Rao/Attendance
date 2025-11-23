@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 from flask import Flask, render_template, request, redirect, session, make_response, url_for, flash
 import sqlite3
@@ -20,6 +21,17 @@ app.secret_key = "face_attendance_secret"
 init_db()
 
 # ---------- LOGIN ----------
+# ── ID validation patterns ─────────────────────────────────────────────────────
+STUDENT_ID_PATTERN = re.compile(r"^1bg\d{2}[A-Za-z]+?\d{3}$", re.IGNORECASE)
+#   Explanation:
+#   ^1bg          → literal “1bg” at the start
+#   \d{2}         → exactly two digits
+#   [A-Za-z]+?    → one or more letters (lazy, any length)
+#   \d{3}$        → exactly three digits at the end
+
+TEACHER_ID_PATTERN = re.compile(r"^t\d{3}$", re.IGNORECASE)
+#   ^t            → literal “t” at the start
+#   \d{3}$        → exactly three digits
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -28,6 +40,36 @@ def login():
         password = request.form.get("password")
         conn = sqlite3.connect('attendance.db')
         c = conn.cursor()
+
+        # --------------------------------------------------------------
+        # 1️⃣  Validate ID format before any DB lookup
+        # --------------------------------------------------------------
+        if role == "student":
+            # Student IDs must match 1bg + 2 digits + letters + 3 digits
+            if not STUDENT_ID_PATTERN.fullmatch(username):
+                flash(
+                    "⚠️ Student IDs must start with **1bg**, followed by 2 digits, "
+                    "some letters, then 3 digits (e.g. 1bg12ABC123). "
+                    f"You entered: “{username}”. Please correct it.",
+                    "warning"
+                )
+                conn.close()
+                return render_template("login.html")
+        elif role == "teacher":
+            # Teacher IDs must match t + 3 digits
+            if not TEACHER_ID_PATTERN.fullmatch(username):
+                flash(
+                    "⚠️ Teacher IDs must be in the form **t###** (e.g. t001). "
+                    f"You entered: “{username}”. Please check the spelling.",
+                    "warning"
+                )
+                conn.close()
+                return render_template("login.html")
+        # (admin IDs are not validated – they are fixed strings)
+
+        # --------------------------------------------------------------
+        # 2️⃣  Existing authentication logic (unchanged)
+        # --------------------------------------------------------------
         if role == "admin":
             c.execute("SELECT * FROM admin WHERE username=? AND password=?", (username, password))
         elif role == "student":
@@ -53,10 +95,10 @@ def login():
             conn.close()
             flash("Invalid role selected", "danger")
             return render_template("login.html")
-        
+
         user = c.fetchone()
         conn.close()
-        
+
         if user:
             session["username"] = username
             session["role"] = role
@@ -64,8 +106,8 @@ def login():
         else:
             flash("Invalid credentials. Please try again.", "danger")
             return render_template("login.html")
-    return render_template("login.html")
 
+    return render_template("login.html")
 # ---------- DASHBOARD ----------
 @app.route("/dashboard")
 def dashboard():
