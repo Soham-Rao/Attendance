@@ -10,28 +10,34 @@
 
 <div class="card">
     {% if result.status == 'valid' %}
-        <div class="text-center" style="padding: 40px;">
-            <i class="fas fa-shield-alt" style="font-size: 4rem; color: var(--success); margin-bottom: 20px;"></i>
-            <h3 class="text-success">Integrity Verified</h3>
-            <p class="lead">{{ result.message }}</p>
-            <p class="text-muted">The hash chain is intact. No tampering detected.</p>
-        </div>
-    {% else %}
-        <div class="text-center" style="padding: 40px;">
-            <i class="fas fa-exclamation-triangle" style="font-size: 4rem; color: var(--error); margin-bottom: 20px;"></i>
-            <h3 class="text-error">Tampering Detected!</h3>
-            <p class="lead">{{ result.message }}</p>
-            
-            <div class="alert alert-error" style="text-align: left; margin-top: 20px;">
-                <strong>Details:</strong>
-                <pre style="margin-top: 10px; background: rgba(0,0,0,0.05); padding: 10px; border-radius: 5px;">{{ result.details | tojson(indent=4) }}</pre>
-            </div>
-        </div>
-    {% endif %}
-    
-    <div class="text-center mt-4">
-        <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
-        <a href="/admin/verify_integrity" class="btn btn-primary">Run Again</a>
+    <div class="text-center" style="padding: 40px;">
+        <i class="fas fa-shield-alt" style="font-size: 4rem; color: var(--success); margin-bottom: 20px;"></i>
+        <h3 class="text-success">Integrity Verified</h3>
+        <p class="lead">{{ result.message }}</p>
+        <p class="text-muted">The hash chain is intact. No tampering detected.</p>
     </div>
+    {% else %}
+    <div class="text-center" style="padding: 40px;">
+        <i class="fas fa-exclamation-triangle" style="font-size: 4rem; color: var(--error); margin-bottom: 20px;"></i>
+        <h3 class="text-error">Tampering Detected!</h3>
+        <p class="lead">{{ result.message }}</p>
+
+        <div class="alert alert-error" style="text-align: left; margin-top: 20px;">
+            <strong>Details:</strong>
+            <pre
+                style="margin-top: 10px; background: rgba(0,0,0,0.05); padding: 10px; border-radius: 5px;">{{ result.details | tojson(indent=4) }}</pre>
+        </div>
+    </div>
+    {% endif %}
+
+
+
+    <div class="text-center mt-4 mb-4">
+        <a href="/admin/verify_integrity" class="btn btn-primary" style="color: white;">Run Again</a>
+    </div>
+</div>
+
+<div class="text-center mt-4">
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
 </div>
 {% endblock %}
