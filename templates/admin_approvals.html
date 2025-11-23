@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Pending Approvals{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2>Pending Attendance Changes</h2>
+    <p class="text-muted">Review and approve/reject change requests from teachers.</p>
+</div>
+
+<div class="flash-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category if category != 'message' else 'success' }}">
+        <i class="fas fa-info-circle"></i> {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+</div>
+
+<div class="card">
+    {% if pending_changes %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Teacher</th>
+                    <th>Class / Subject</th>
+                    <th>Student</th>
+                    <th>Old Status</th>
+                    <th>New Status</th>
+                    <th>Reason</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for change in pending_changes %}
+                <tr>
+                    <td>{{ change['timestamp'] }}</td>
+                    <td>{{ change['teacher_name'] }}</td>
+                    <td>{{ change['class_name'] }} - {{ change['subject'] }}</td>
+                    <td>{{ change['student_name'] }} ({{ change['usn'] }})</td>
+                    <td>
+                        <span class="badge badge-{{ 'success' if change['old_status'] == 'Present' else 'danger' }}">
+                            {{ change['old_status'] }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ 'success' if change['new_status'] == 'Present' else 'danger' }}">
+                            {{ change['new_status'] }}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="max-width: 200px; white-space: normal; font-size: 0.9rem; font-style: italic;">
+                            "{{ change['comment'] }}"
+                        </div>
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 5px;">
+                            <form action="/approve_change/{{ change['id'] }}" method="POST">
+                                <button type="submit" class="btn btn-success btn-sm" title="Approve & Rewrite Chain">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                            </form>
+                            <form action="/reject_change/{{ change['id'] }}" method="POST">
+                                <button type="submit" class="btn btn-danger btn-sm" title="Reject">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info text-center">
+        No pending change requests found.
+    </div>
+    {% endif %}
+</div>
+
+<div class="text-center mt-4">
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+{% endblock %}

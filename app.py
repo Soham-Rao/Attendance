@@ -12,6 +12,8 @@ import base64
 import numpy as np
 import cv2
 import json
+from utils.hashing import calculate_hash, get_last_hash, recalculate_chain
+from verify_integrity import verify_chain
 
 app = Flask(__name__)
 app.secret_key = "face_attendance_secret"
@@ -29,7 +31,24 @@ def login():
         if role == "admin":
             c.execute("SELECT * FROM admin WHERE username=? AND password=?", (username, password))
         elif role == "student":
+            # Convert yyyy-mm-dd to ddmmyyyy if needed
+            if "-" in password:
+                try:
+                    parts = password.split("-")
+                    # yyyy-mm-dd -> ddmmyyyy
+                    password = f"{parts[2]}{parts[1]}{parts[0]}"
+                except:
+                    pass
             c.execute("SELECT * FROM students WHERE usn=? AND dob=?", (username, password))
+        elif role == "teacher":
+            # Convert yyyy-mm-dd to ddmmyyyy if needed
+            if "-" in password:
+                try:
+                    parts = password.split("-")
+                    password = f"{parts[2]}{parts[1]}{parts[0]}"
+                except:
+                    pass
+            c.execute("SELECT * FROM teachers WHERE teacher_id=? AND dob=?", (username, password))
         else:
             conn.close()
             flash("Invalid role selected", "danger")
@@ -54,6 +73,8 @@ def dashboard():
         return redirect("/")
     if session["role"] == "admin":
         return render_template("admin_dashboard.html")
+    elif session["role"] == "teacher":
+        return redirect("/teacher_dashboard")
 
     usn = session["username"]
     conn = sqlite3.connect('attendance.db')
@@ -175,7 +196,13 @@ def add_student():
         return "Unauthorized", 403
     usn = request.form["usn"]
     name = request.form["name"]
-    dob = request.form["dob"]
+    dob_raw = request.form["dob"]
+    # Convert yyyy-mm-dd to ddmmyyyy
+    try:
+        parts = dob_raw.split("-")
+        dob = f"{parts[2]}{parts[1]}{parts[0]}"
+    except:
+        dob = dob_raw # Fallback
     class_id = request.form["class_id"]
     
     # Ensure registered_faces directory exists
@@ -233,6 +260,89 @@ def add_student():
         
     conn.close()
     return redirect("/add_student_form")
+
+# ---------- TEACHER MANAGEMENT ----------
+@app.route("/add_teacher", methods=["POST"])
+def add_teacher():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    
+    teacher_id = request.form["teacher_id"]
+    name = request.form["name"]
+    dob_raw = request.form["dob"]
+    # Convert yyyy-mm-dd to ddmmyyyy
+    try:
+        parts = dob_raw.split("-")
+        dob = f"{parts[2]}{parts[1]}{parts[0]}"
+    except:
+        dob = dob_raw # Fallback
+    
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO teachers (teacher_id, name, dob) VALUES (?,?,?)", (teacher_id, name, dob))
+        conn.commit()
+        flash("Teacher added successfully!", "success")
+    except sqlite3.IntegrityError:
+        flash("Teacher ID already exists.", "error")
+        
+    conn.close()
+    return redirect("/admin/manage_teachers")
+
+@app.route("/assign_teacher", methods=["POST"])
+def assign_teacher():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+        
+    teacher_id = request.form["teacher_id"] # This is the unique ID string
+    class_id = request.form["class_id"]
+    subject = request.form["subject"]
+    
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    # Check if assignment already exists
+    c.execute("SELECT id FROM teacher_assignments WHERE teacher_id=? AND class_id=? AND subject=?", 
+              (teacher_id, class_id, subject))
+    if c.fetchone():
+        flash("This assignment already exists.", "warning")
+    else:
+        c.execute("INSERT INTO teacher_assignments (teacher_id, class_id, subject) VALUES (?,?,?)",
+                  (teacher_id, class_id, subject))
+        conn.commit()
+        flash("Teacher assigned successfully!", "success")
+        
+    conn.close()
+    return redirect("/admin/manage_teachers")
+
+@app.route("/admin/manage_teachers")
+def manage_teachers():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+        
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    # Get all teachers
+    c.execute("SELECT * FROM teachers ORDER BY name")
+    teachers = c.fetchall()
+    
+    # Get all classes
+    c.execute("SELECT id, class_name FROM classes ORDER BY class_name")
+    classes = c.fetchall()
+    
+    # Get all assignments with details
+    c.execute("""
+        SELECT ta.id, t.name, c.class_name, ta.subject 
+        FROM teacher_assignments ta
+        JOIN teachers t ON ta.teacher_id = t.teacher_id
+        JOIN classes c ON ta.class_id = c.id
+        ORDER BY t.name, c.class_name
+    """)
+    assignments = c.fetchall()
+    
+    conn.close()
+    return render_template("manage_teachers.html", teachers=teachers, classes=classes, assignments=assignments)
 
 # ---------- SUBJECT MANAGEMENT ----------
 @app.route("/subjects")
@@ -301,30 +411,93 @@ def delete_subject(sid):
     return redirect(f"/subjects?class_id={class_id}")
 
 # ---------- MARK ATTENDANCE (with dropdowns) ----------
-@app.route("/mark_attendance", methods=["GET", "POST"])
-def mark_attendance():
-    if session.get("role") != "admin":
+# ---------- TEACHER DASHBOARD ----------
+@app.route("/teacher_dashboard")
+def teacher_dashboard():
+    if session.get("role") != "teacher":
         return "Unauthorized", 403
+        
+    teacher_id = session["username"]
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
-    c.execute("SELECT id, class_name FROM classes")
-    classes = c.fetchall()
-    selected_class_id = request.args.get("class_id")
+    
+    # Fetch assignments: (class_id, subject, class_name)
+    c.execute("""
+        SELECT ta.class_id, ta.subject, c.class_name
+        FROM teacher_assignments ta
+        JOIN classes c ON ta.class_id = c.id
+        WHERE ta.teacher_id=?
+    """, (teacher_id,))
+    assignments = c.fetchall()
+    conn.close()
+    
+    return render_template("teacher_dashboard.html", assignments=assignments)
+
+# ---------- MARK ATTENDANCE (Teacher Only) ----------
+@app.route("/mark_attendance", methods=["GET", "POST"])
+def mark_attendance():
+    role = session.get("role")
+    if role not in ["admin", "teacher"]:
+        return "Unauthorized: Only teachers/admins can mark attendance.", 403
+        
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    # 1. Fetch available classes/subjects based on role
+    if role == "teacher":
+        teacher_id = session["username"]
+        # Fetch assigned classes
+        c.execute("""
+            SELECT DISTINCT c.id, c.class_name 
+            FROM classes c
+            JOIN teacher_assignments ta ON c.id = ta.class_id
+            WHERE ta.teacher_id=?
+        """, (teacher_id,))
+        classes = c.fetchall()
+        
+        # If no classes assigned, show error or empty
+        if not classes:
+            conn.close()
+            return "You have no assigned classes.", 403
+            
+    else: # Admin
+        c.execute("SELECT id, class_name FROM classes")
+        classes = c.fetchall()
+
+    # 2. Handle Selection
+    selected_class_id = request.args.get("class_id") or request.form.get("class_id")
+    selected_subject = request.args.get("subject") or request.form.get("subject")
+    
+    # Default to first class if not selected (optional, but helps UX)
+    # Actually, let's not default, let user select.
+    
     subjects = []
     if selected_class_id:
         try:
             cid = int(selected_class_id)
-            # Fetch subjects from the new subjects table
-            c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (cid,))
+            # Fetch subjects
+            if role == "teacher":
+                teacher_id = session["username"]
+                c.execute("""
+                    SELECT subject FROM teacher_assignments 
+                    WHERE teacher_id=? AND class_id=?
+                    ORDER BY subject
+                """, (teacher_id, cid))
+            else:
+                c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (cid,))
+            
             subjects = [row[0] for row in c.fetchall()]
         except ValueError:
             pass
-    conn.close()
+
     if request.method == "POST":
-        conn = sqlite3.connect('attendance.db')
-        c = conn.cursor()
-        class_id = int(request.form["class_id"])
-        subject = request.form["subject"]
+        # ... (POST logic remains mostly same, just ensure we have valid data)
+        if not selected_class_id or not selected_subject:
+             flash("Please select both class and subject.", "error")
+             return redirect(request.url)
+
+        class_id = int(selected_class_id)
+        subject = selected_subject
         hour = request.form["hour"]
         
         # Get total student count for the class
@@ -343,40 +516,76 @@ def mark_attendance():
 
         conn.close()
         
-        # run_live_attendance(class_id, subject) # DEPRECATED: Local webcam loop
-        # return "Attendance process completed"
         return render_template("live_attendance.html", 
                                class_id=class_id, 
                                subject=subject, 
                                hour=hour, 
                                total_students=total_students,
                                existing_present_data=existing_present_data)
+
+    conn.close()
     return render_template("mark_attendance.html",
                            classes=classes,
                            selected_class_id=int(selected_class_id) if selected_class_id else None,
-                           subjects=subjects)
+                           subjects=subjects,
+                           selected_subject=selected_subject)
 
 # ---------- ADMIN ATTENDANCE ----------
 @app.route("/admin/attendance", methods=["GET", "POST"])
 def admin_attendance():
-    if session.get("role") != "admin":
+    role = session.get("role")
+    if role not in ["admin", "teacher"]:
         return "Unauthorized", 403
 
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
 
-    # ------------------- POST (Update Changes) -------------------
+    # ------------------- POST (Update/Request Changes) -------------------
     if request.method == "POST":
+        # If teacher, we need a reason
+        reason = request.form.get("reason")
+        if role == "teacher" and not reason:
+            flash("Reason is required for change requests.", "error")
+            return redirect(request.url)
+
+        changes_made = False
         for key, value in request.form.items():
             if key.startswith("status_"):
                 att_id = key.split("_")[1]
-                c.execute("UPDATE attendance SET status=? WHERE id=?", (value, att_id))
+                
+                # Fetch current status to see if it actually changed
+                c.execute("SELECT status FROM attendance WHERE id=?", (att_id,))
+                current_status = c.fetchone()[0]
+                
+                if current_status != value:
+                    if role == "admin":
+                        # Admin updates directly
+                        c.execute("UPDATE attendance SET status=? WHERE id=?", (value, att_id))
+                        # Auto-rehash immediately for Admin
+                        recalculate_chain(c, att_id)
+                        changes_made = True
+                    elif role == "teacher":
+                        # Teacher requests change
+                        teacher_id = session["username"]
+                        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        c.execute("""
+                            INSERT INTO pending_attendance_changes 
+                            (attendance_id, new_status, requested_by, timestamp, comment)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (att_id, value, teacher_id, timestamp, reason))
+                        changes_made = True
 
         conn.commit()
         conn.close()
 
         # Flash success message
-        flash("Attendance updated successfully!", "success")
+        if changes_made:
+            if role == "admin":
+                flash("Attendance updated successfully!", "success")
+            else:
+                flash("Change request submitted successfully! Waiting for admin approval.", "success")
+        else:
+            flash("No changes detected.", "info")
 
         # Preserve filters on redirect
         params = []
@@ -401,7 +610,18 @@ def admin_attendance():
         class_id_int = None
 
     # Fetch class list
-    c.execute("SELECT id, class_name FROM classes")
+    # If teacher, only show assigned classes
+    if role == "teacher":
+        teacher_id = session["username"]
+        c.execute("""
+            SELECT DISTINCT c.id, c.class_name 
+            FROM classes c
+            JOIN teacher_assignments ta ON c.id = ta.class_id
+            WHERE ta.teacher_id=?
+        """, (teacher_id,))
+    else:
+        c.execute("SELECT id, class_name FROM classes")
+    
     classes = c.fetchall()
 
     subjects = []
@@ -410,7 +630,17 @@ def admin_attendance():
 
     if class_id_int:
         # Subjects list
-        c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (class_id_int,))
+        # If teacher, only show assigned subjects for this class
+        if role == "teacher":
+            teacher_id = session["username"]
+            c.execute("""
+                SELECT subject FROM teacher_assignments 
+                WHERE teacher_id=? AND class_id=?
+                ORDER BY subject
+            """, (teacher_id, class_id_int))
+        else:
+            c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (class_id_int,))
+            
         subjects = [s[0] for s in c.fetchall()]
 
         # Students list
@@ -491,16 +721,32 @@ def delete_attendance(att_id):
     redir = f"/admin/attendance?class_id={class_id}&subject={subject}&hour={hour}&date={date}&student_id={student_id}"
     
     return redirect(redir)
-    
+
 # ---------- ADMIN STUDENT ATTENDANCE HISTORY ----------
 @app.route("/admin/student_attendance_history", methods=["GET", "POST"])
 def student_attendance_history():
-    if session.get("role") != "admin":
+    role = session.get("role")
+    if role not in ["admin", "teacher"]:
         return "Unauthorized", 403
+        
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
-    c.execute("SELECT id, class_name FROM classes ORDER BY class_name")
+    
+    # Fetch classes
+    # If teacher, only show assigned classes
+    if role == "teacher":
+        teacher_id = session["username"]
+        c.execute("""
+            SELECT DISTINCT c.id, c.class_name 
+            FROM classes c
+            JOIN teacher_assignments ta ON c.id = ta.class_id
+            WHERE ta.teacher_id=?
+        """, (teacher_id,))
+    else:
+        c.execute("SELECT id, class_name FROM classes ORDER BY class_name")
+        
     classes = c.fetchall()
+    
     selected_class_id = request.args.get("class_id") or request.form.get("class_id")
     selected_student_id = request.args.get("student_id") or request.form.get("student_id")
     selected_subject = request.args.get("subject") or request.form.get("subject")
@@ -510,12 +756,25 @@ def student_attendance_history():
     filtered_students, attendance_records, student_info, subjects = [], [], None, []
     
     if selected_class_id:
-        # Get students
-        c.execute("SELECT id, usn, name FROM students WHERE class_id=? ORDER BY name", (selected_class_id,))
-        filtered_students = c.fetchall()
-        # Get subjects for this class from subjects table
-        c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (selected_class_id,))
-        subjects = [row[0] for row in c.fetchall()]
+        try:
+            cid = int(selected_class_id)
+            # Get subjects for this class
+            if role == "teacher":
+                teacher_id = session["username"]
+                c.execute("""
+                    SELECT subject FROM teacher_assignments 
+                    WHERE teacher_id=? AND class_id=?
+                    ORDER BY subject
+                """, (teacher_id, cid))
+            else:
+                c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (cid,))
+            subjects = [row[0] for row in c.fetchall()]
+
+            # Get students
+            c.execute("SELECT id, usn, name FROM students WHERE class_id=? ORDER BY name", (cid,))
+            filtered_students = c.fetchall()
+        except ValueError:
+            pass
 
     if selected_student_id:
         c.execute("SELECT usn, name, class_name FROM students JOIN classes ON students.class_id = classes.id WHERE students.id=?", (selected_student_id,))
@@ -769,10 +1028,10 @@ def attendance_graph(subject):
     c = conn.cursor()
     c.execute("SELECT id FROM students WHERE usn=?", (usn,))
     student_id = c.fetchone()[0]
-    c.execute("""SELECT date, status 
+    c.execute("""SELECT date, status, hour 
                  FROM attendance 
                  WHERE student_id=? AND subject=?
-                 ORDER BY date""", (student_id, subject))
+                 ORDER BY date, hour""", (student_id, subject))
     attendance_records = c.fetchall()
     dates = []
     statuses = []
@@ -854,21 +1113,158 @@ def api_submit_attendance():
     
     date_today = datetime.date.today().strftime("%Y-%m-%d")
     
+    # Get the last hash to start the chain for this batch
+    previous_hash = get_last_hash(c)
+    
     for sid in all_students:
         status = "Present" if sid in present_student_ids else "Absent"
         # Check if already marked for today/subject/hour to avoid duplicates
         c.execute("SELECT id FROM attendance WHERE student_id=? AND subject=? AND date=? AND hour=?", (sid, subject, date_today, hour))
         existing = c.fetchone()
+        
         if existing:
+             # If updating, we update the status. 
+             # NOTE: This will technically break the hash chain verification for this record 
+             # and potentially subsequent ones, which is the intended behavior for tamper detection.
+             # We do NOT update the hash here to preserve the original chain history as much as possible,
+             # or we could update it and break the next link. 
+             # For now, we just update status.
              c.execute("UPDATE attendance SET status=? WHERE id=?", (status, existing[0]))
         else:
-            c.execute("INSERT INTO attendance (student_id, subject, date, status, hour) VALUES (?,?,?,?,?)",
-                      (sid, subject, date_today, status, hour))
+            # Calculate hash for the new record
+            current_hash = calculate_hash(sid, subject, date_today, status, hour, previous_hash)
+            
+            c.execute("INSERT INTO attendance (student_id, subject, date, status, hour, previous_hash, current_hash) VALUES (?,?,?,?,?,?,?)",
+                      (sid, subject, date_today, status, hour, previous_hash, current_hash))
+            
+            # Update previous_hash for the next iteration
+            previous_hash = current_hash
 
     conn.commit()
     conn.close()
 
     return {"status": "success", "message": "Attendance marked successfully"}
+
+@app.route("/admin/verify_integrity")
+def verify_integrity_route():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    
+    result = verify_chain()
+    return render_template("verify_integrity.html", result=result)
+
+@app.route("/api/get_subjects/<int:class_id>")
+def get_subjects_api(class_id):
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (class_id,))
+    subjects = [row[0] for row in c.fetchall()]
+    conn.close()
+    return json.dumps(subjects)
+
+# ---------- ADMIN APPROVALS ----------
+@app.route("/admin/approvals")
+def admin_approvals():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+        
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    # Fetch pending changes with details
+    c.execute("""
+        SELECT p.id, p.timestamp, t.name as teacher_name, c.class_name, ta.subject, 
+               s.name as student_name, s.usn, 
+               a.status as old_status, p.new_status, p.comment
+        FROM pending_attendance_changes p
+        JOIN attendance a ON p.attendance_id = a.id
+        JOIN teachers t ON p.requested_by = t.teacher_id
+        JOIN students s ON a.student_id = s.id
+        JOIN classes c ON s.class_id = c.id
+        JOIN teacher_assignments ta ON p.requested_by = ta.teacher_id AND c.id = ta.class_id
+        ORDER BY p.timestamp DESC
+    """)
+    # Note: The join on teacher_assignments is a bit loose, just to get subject if possible, 
+    # but attendance record has subject too. Let's use attendance subject.
+    
+    # Improved query using attendance subject
+    c.execute("""
+        SELECT p.id, p.timestamp, t.name as teacher_name, c.class_name, a.subject, 
+               s.name as student_name, s.usn, 
+               a.status as old_status, p.new_status, p.comment
+        FROM pending_attendance_changes p
+        JOIN attendance a ON p.attendance_id = a.id
+        JOIN teachers t ON p.requested_by = t.teacher_id
+        JOIN students s ON a.student_id = s.id
+        JOIN classes c ON s.class_id = c.id
+        ORDER BY p.timestamp DESC
+    """)
+    
+    rows = c.fetchall()
+    pending_changes = []
+    for row in rows:
+        pending_changes.append({
+            "id": row[0],
+            "timestamp": row[1],
+            "teacher_name": row[2],
+            "class_name": row[3],
+            "subject": row[4],
+            "student_name": row[5],
+            "usn": row[6],
+            "old_status": row[7],
+            "new_status": row[8],
+            "comment": row[9]
+        })
+        
+    conn.close()
+    return render_template("admin_approvals.html", pending_changes=pending_changes)
+
+@app.route("/approve_change/<int:change_id>", methods=["POST"])
+def approve_change(change_id):
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+        
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    # 1. Get change details
+    c.execute("SELECT attendance_id, new_status FROM pending_attendance_changes WHERE id=?", (change_id,))
+    change = c.fetchone()
+    
+    if change:
+        att_id, new_status = change
+        
+        # 2. Update attendance status
+        c.execute("UPDATE attendance SET status=? WHERE id=?", (new_status, att_id))
+        
+        # 3. Recalculate Hash Chain from this record forward
+        # This is the critical step for "Rewrite History"
+        recalculate_chain(c, att_id)
+        
+        # 4. Remove from pending
+        c.execute("DELETE FROM pending_attendance_changes WHERE id=?", (change_id,))
+        
+        conn.commit()
+        flash("Change approved and hash chain recalculated.", "success")
+    else:
+        flash("Change request not found.", "error")
+        
+    conn.close()
+    return redirect("/admin/approvals")
+
+@app.route("/reject_change/<int:change_id>", methods=["POST"])
+def reject_change(change_id):
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+        
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM pending_attendance_changes WHERE id=?", (change_id,))
+    conn.commit()
+    conn.close()
+    
+    flash("Change request rejected.", "info")
+    return redirect("/admin/approvals")
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -38,13 +38,50 @@ def init_db():
         subject TEXT,
         date TEXT,
         status TEXT,
-        hour INTEGER
+        hour INTEGER,
+        previous_hash TEXT,
+        current_hash TEXT
     )''')
+
+    # Migration: Add hash columns if they don't exist
+    try:
+        c.execute("ALTER TABLE attendance ADD COLUMN previous_hash TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column likely already exists
+
+    try:
+        c.execute("ALTER TABLE attendance ADD COLUMN current_hash TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column likely already exists
 
     c.execute('''CREATE TABLE IF NOT EXISTS subjects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         class_id INTEGER,
         name TEXT
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS teachers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        teacher_id TEXT UNIQUE,
+        name TEXT,
+        dob TEXT
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS teacher_assignments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        teacher_id TEXT,
+        class_id INTEGER,
+        subject TEXT
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS pending_attendance_changes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        attendance_id INTEGER,
+        new_status TEXT,
+        requested_by TEXT,
+        timestamp TEXT,
+        comment TEXT,
+        FOREIGN KEY(attendance_id) REFERENCES attendance(id)
     )''')
 
     # Insert default admin if none exists

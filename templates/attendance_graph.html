@@ -15,6 +15,7 @@
         <thead>
             <tr>
                 <th>Date</th>
+                <th>Hour</th>
                 <th>Status</th>
             </tr>
         </thead>
@@ -22,6 +23,7 @@
             {% for record in records %}
             <tr>
                 <td>{{ record[0] }}</td>
+                <td>{{ record[2] }}</td>
                 <td>
                     <span class="{% if record[1] == 'Present' %}text-success{% else %}text-danger{% endif %}"
                         style="font-weight: bold;">
@@ -42,13 +44,13 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     const ctx = document.getElementById('attendanceChart').getContext('2d');
-    
+
     // Parse the Jinja variables safely into JavaScript Arrays
     const dates = JSON.parse('{{ dates | tojson | safe }}');
     const statuses = JSON.parse('{{ statuses | tojson | safe }}'); // 1 for Present, 0 for Absent
 
     // Define Theme Colors
-    const greenColor = '#00b894'; 
+    const greenColor = '#00b894';
     const redColor = '#d63031';
     const greenBg = 'rgba(0, 184, 148, 0.2)';
     const redBg = 'rgba(214, 48, 49, 0.2)';
@@ -64,7 +66,7 @@
                 fill: true,
                 tension: 0.1,
                 stepped: true,
-                
+
                 // Color the points based on value (1=Green, 0=Red)
                 pointBackgroundColor: statuses.map(s => s === 1 ? greenColor : redColor),
                 pointBorderColor: statuses.map(s => s === 1 ? greenColor : redColor),
@@ -108,7 +110,7 @@
                 },
                 tooltip: {
                     callbacks: {
-                        label: function(context) {
+                        label: function (context) {
                             return context.raw === 1 ? 'Present' : 'Absent';
                         }
                     }
@@ -120,7 +122,12 @@
 
 <!-- CSS to ensure the text colors apply correctly -->
 <style>
-    .text-success { color: #00b894 !important; }
-    .text-danger { color: #d63031 !important; }
+    .text-success {
+        color: #00b894 !important;
+    }
+
+    .text-danger {
+        color: #d63031 !important;
+    }
 </style>
 {% endblock %}

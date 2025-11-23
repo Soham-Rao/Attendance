@@ -7,25 +7,25 @@
 
 <div class="flash-container">
     {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category if category != 'message' else 'success' }}">
-                    {% if category == 'success' %}
-                        <i class="fas fa-check-circle"></i>
-                    {% elif category == 'error' %}
-                        <i class="fas fa-exclamation-circle"></i>
-                    {% else %}
-                        <i class="fas fa-info-circle"></i>
-                    {% endif %}
-                    
-                    <span>{{ message }}</span>
-                    
-                    <button type="button" class="close-btn" onclick="this.parentElement.remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            {% endfor %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category if category != 'message' else 'success' }}">
+        {% if category == 'success' %}
+        <i class="fas fa-check-circle"></i>
+        {% elif category == 'error' %}
+        <i class="fas fa-exclamation-circle"></i>
+        {% else %}
+        <i class="fas fa-info-circle"></i>
         {% endif %}
+
+        <span>{{ message }}</span>
+
+        <button type="button" class="close-btn" onclick="this.parentElement.remove()">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    {% endfor %}
+    {% endif %}
     {% endwith %}
 </div>
 
@@ -86,9 +86,9 @@
 
 {% if attendance_records %}
 <div class="card">
-    <form method="POST" 
-          action="/admin/attendance?class_id={{ selected_class or '' }}&subject={{ selected_subject or '' }}&hour={{ selected_hour or '' }}&date={{ selected_date or '' }}&student_id={{ selected_student or '' }}">
-        
+    <form method="POST"
+        action="/admin/attendance?class_id={{ selected_class or '' }}&subject={{ selected_subject or '' }}&hour={{ selected_hour or '' }}&date={{ selected_date or '' }}&student_id={{ selected_student or '' }}">
+
         <input type="hidden" name="class_id" value="{{ selected_class or '' }}">
         <input type="hidden" name="subject" value="{{ selected_subject or '' }}">
         <input type="hidden" name="hour" value="{{ selected_hour or '' }}">
@@ -124,17 +124,31 @@
                         </select>
                     </td>
                     <td>
+                        {% if session['role'] == 'admin' %}
                         <button type="submit" formaction="/delete_attendance/{{ record[0] }}" class="btn btn-danger"
                             style="padding: 5px 10px; font-size: 14px;">Delete</button>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
 
+        {% if session['role'] == 'teacher' %}
+        <div style="margin-top: 20px;">
+            <label>Reason for Change (Required):</label>
+            <textarea name="reason" required class="form-control"
+                placeholder="Explain why you are changing the attendance status..." rows="3"
+                style="width: 100%; margin-top: 5px;"></textarea>
+        </div>
+        <div style="margin-top: 20px; text-align: right;">
+            <button type="submit" class="btn btn-warning">Request Changes</button>
+        </div>
+        {% else %}
         <div style="margin-top: 20px; text-align: right;">
             <button type="submit" class="btn btn-success">Update Changes</button>
         </div>
+        {% endif %}
     </form>
 </div>
 {% else %}

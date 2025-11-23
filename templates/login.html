@@ -37,6 +37,7 @@
                     <select id="role" name="role" required autocomplete="off">
                         <option value="">-- Select Role --</option>
                         <option value="student">Student</option>
+                        <option value="teacher">Teacher</option>
                         <option value="admin">Admin</option>
                     </select>
                 </div>
@@ -48,7 +49,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="password">Password / DOB (YYYY-MM-DD)</label>
+                    <label for="password">Password / DOB (ddmmyyyy)</label>
                     <input type="password" id="password" name="password" required placeholder="Enter your password"
                         autocomplete="new-password">
                 </div>
@@ -83,6 +84,23 @@
                 document.getElementById('role').value = '';
                 document.getElementById('username').value = '';
                 document.getElementById('password').value = '';
+            }
+        });
+
+        // Dynamic Password Input Type
+        const roleSelect = document.getElementById('role');
+        const passwordInput = document.getElementById('password');
+        const passwordLabel = document.querySelector('label[for="password"]');
+
+        roleSelect.addEventListener('change', function () {
+            if (this.value === 'student' || this.value === 'teacher') {
+                passwordInput.type = 'date';
+                passwordInput.placeholder = 'dd/mm/yyyy';
+                passwordLabel.textContent = 'Date of Birth (Password)';
+            } else {
+                passwordInput.type = 'password';
+                passwordInput.placeholder = 'Enter your password';
+                passwordLabel.textContent = 'Password';
             }
         });
     </script>
