@@ -132,6 +132,7 @@
                             style="width: 100%; padding: 5px; font-size: 0.9rem; resize: vertical;"></textarea>
                         {% elif session['role'] == 'admin' %}
                         <button type="submit" formaction="/delete_attendance/{{ record[0] }}" class="btn btn-danger"
+                            onclick="return confirm('⚠️ Are you sure you want to delete this attendance record?\n\nStudent: {{ record[2] }}\nSubject: {{ record[3] }}\nDate: {{ record[5] }}\n\nThis action cannot be undone!');"
                             style="padding: 5px 10px; font-size: 14px;">Delete</button>
                         {% endif %}
                     </td>

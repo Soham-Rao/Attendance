@@ -22,7 +22,7 @@
         </thead>
         <tbody>
             {% for record in records %}
-            <tr>
+            <tr {% if record[0] in pending_ids %}class="pending-change"{% endif %}>
                 <td>{{ record[1] }}</td>
                 <td>{{ record[3] }}</td>
                 <td>
@@ -186,5 +186,16 @@
         padding: 5px 10px;
         font-size: 0.8rem;
     }
+</style>
+<style>
+.pending-change {
+    background-color: #fff3cd !important;
+    border-left: 4px solid #ff9800;
+    transition: all 0.3s ease;
+}
+
+.pending-change td {
+    font-weight: 500;
+}
 </style>
 {% endblock %}

@@ -133,14 +133,24 @@ def dashboard():
     
     # Calculate overall attendance
     overall_percentage = round((total_present / total_classes * 100) if total_classes > 0 else 0, 1)
-    
+
+        # Get list of attendance IDs that have pending change requests for this student
+    c.execute("""
+        SELECT DISTINCT p.attendance_id 
+        FROM pending_attendance_changes p
+        JOIN attendance a ON p.attendance_id = a.id
+        WHERE a.student_id = (SELECT id FROM students WHERE usn = ?)
+    """, (usn,))
+    pending_ids = {row[0] for row in c.fetchall()}
+
     conn.close()
     return render_template("student_dashboard.html",
                            usn=usn,
                            subject_stats=subject_stats,
                            overall_percentage=overall_percentage,
                            total_present=total_present,
-                           total_classes=total_classes)
+                           total_classes=total_classes,
+                           pending_ids=pending_ids)
 
 # ---------- CLASS MANAGEMENT ----------
 @app.route("/classes")
@@ -1064,6 +1074,18 @@ def attendance_graph(subject):
                  WHERE student_id=? AND subject=?
                  ORDER BY date, hour""", (student_id, subject))
     attendance_records = c.fetchall()
+    # --------------------------------------------------------------
+    # 1️⃣  Get the set of attendance IDs that already have a pending
+    #     change request for THIS STUDENT (and optionally this subject)
+    # --------------------------------------------------------------
+    c.execute("""
+        SELECT DISTINCT p.attendance_id
+        FROM pending_attendance_changes p
+        JOIN attendance a ON p.attendance_id = a.id
+        WHERE a.student_id = ?
+          AND a.subject = ?
+    """, (student_id, subject))
+    pending_ids = {row[0] for row in c.fetchall()}
     dates = []
     statuses = []
     for record in attendance_records:
@@ -1078,7 +1100,8 @@ def attendance_graph(subject):
                           subject=subject, 
                           dates=dates, 
                           statuses=statuses, 
-                          records=attendance_records)
+                          records=attendance_records,
+                          pending_ids=pending_ids)
 
 @app.route("/logout")
 def logout():
