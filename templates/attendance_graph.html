@@ -42,35 +42,74 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     const ctx = document.getElementById('attendanceChart').getContext('2d');
-    const dates = "{{ dates | tojson }}";
-    const statuses = "{{ statuses | tojson }}"; // 1 for Present, 0 for Absent
+    
+    // Parse the Jinja variables safely into JavaScript Arrays
+    const dates = JSON.parse('{{ dates | tojson | safe }}');
+    const statuses = JSON.parse('{{ statuses | tojson | safe }}'); // 1 for Present, 0 for Absent
+
+    // Define Theme Colors
+    const greenColor = '#00b894'; 
+    const redColor = '#d63031';
+    const greenBg = 'rgba(0, 184, 148, 0.2)';
+    const redBg = 'rgba(214, 48, 49, 0.2)';
 
     new Chart(ctx, {
         type: 'line',
         data: {
             labels: dates,
             datasets: [{
-                label: 'Attendance (1=Present, 0=Absent)',
+                label: 'Attendance',
                 data: statuses,
-                borderColor: '#4a90e2',
-                backgroundColor: 'rgba(74, 144, 226, 0.2)',
                 borderWidth: 2,
                 fill: true,
                 tension: 0.1,
-                stepped: true
+                stepped: true,
+                
+                // Color the points based on value (1=Green, 0=Red)
+                pointBackgroundColor: statuses.map(s => s === 1 ? greenColor : redColor),
+                pointBorderColor: statuses.map(s => s === 1 ? greenColor : redColor),
+                pointRadius: 5,
+                pointHoverRadius: 7,
+
+                // Color the line segments and fill area based on value
+                segment: {
+                    borderColor: ctx => ctx.p0.parsed.y === 1 ? greenColor : redColor,
+                    backgroundColor: ctx => ctx.p0.parsed.y === 1 ? greenBg : redBg,
+                }
             }]
         },
         options: {
+            responsive: true,
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 1.2,
+                    max: 1.2, // Adds a little space at top
                     ticks: {
                         stepSize: 1,
+                        font: { weight: 'bold' },
+                        // Custom labels for Y-axis
                         callback: function (value) {
                             if (value === 0) return 'Absent';
                             if (value === 1) return 'Present';
                             return '';
+                        },
+                        // Color the Y-axis text
+                        color: (context) => {
+                            if (context.tick.value === 1) return greenColor;
+                            if (context.tick.value === 0) return redColor;
+                            return '#666';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false // Hide legend since colors explain the status
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.raw === 1 ? 'Present' : 'Absent';
                         }
                     }
                 }
@@ -78,4 +117,10 @@
         }
     });
 </script>
+
+<!-- CSS to ensure the text colors apply correctly -->
+<style>
+    .text-success { color: #00b894 !important; }
+    .text-danger { color: #d63031 !important; }
+</style>
 {% endblock %}

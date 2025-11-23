@@ -3,9 +3,34 @@
 {% block title %}Manage Classes{% endblock %}
 
 {% block content %}
+
+<div class="flash-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category if category != 'message' else 'success' }}">
+                    {% if category == 'success' %}
+                        <i class="fas fa-check-circle"></i>
+                    {% elif category == 'error' %}
+                        <i class="fas fa-exclamation-circle"></i>
+                    {% else %}
+                        <i class="fas fa-info-circle"></i>
+                    {% endif %}
+                    
+                    <span>{{ message }}</span>
+                    
+                    <button type="button" class="close-btn" onclick="this.parentElement.remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
 <h2>Manage Classes</h2>
 
-<div class="row">
+<div class="row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
     <div class="col-md-6">
         <div class="card">
             <h3>Add New Class</h3>
@@ -40,7 +65,7 @@
                 </tbody>
             </table>
             {% else %}
-            <p>No classes found.</p>
+            <p class="text-muted">No classes found.</p>
             {% endif %}
         </div>
     </div>

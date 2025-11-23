@@ -1,0 +1,27 @@
+.login-bg-text {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: center;
+    z-index: 0;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.15;
+}
+
+.login-bg-text-left {
+    left: 5%;
+}
+
+.login-bg-text-right {
+    right: 5%;
+}
+
+.login-bg-text-line {
+    font-size: 4.5rem;
+    font-weight: 900;
+    color: var(--primary);
+    line-height: 1.1;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}

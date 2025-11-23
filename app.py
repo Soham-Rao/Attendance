@@ -67,25 +67,6 @@ def dashboard():
     
     student_id, class_id = student_row
     
-    current_subject, current_status = None, None
-    
-    # Check current ongoing class
-    if class_id:
-        now = datetime.datetime.now().time()
-        c.execute("SELECT subject, start_time, end_time FROM timetable WHERE class_id=?", (class_id,))
-        for subject, start_str, end_str in c.fetchall():
-            start_time = datetime.datetime.strptime(start_str, "%H:%M").time()
-            end_time = datetime.datetime.strptime(end_str, "%H:%M").time()
-            if start_time <= now <= end_time:
-                current_subject = subject
-                break
-        if current_subject:
-            today_str = datetime.date.today().strftime("%Y-%m-%d")
-            c.execute("SELECT status FROM attendance WHERE student_id=? AND subject=? AND date=?",
-                      (student_id, current_subject, today_str))
-            row = c.fetchone()
-            current_status = row[0] if row else "Absent"
-    
     # Get all subjects with attendance data
     c.execute("""
         SELECT DISTINCT subject FROM attendance
@@ -135,8 +116,6 @@ def dashboard():
     conn.close()
     return render_template("student_dashboard.html",
                            usn=usn,
-                           current_subject=current_subject,
-                           current_status=current_status,
                            subject_stats=subject_stats,
                            overall_percentage=overall_percentage,
                            total_present=total_present,
@@ -154,98 +133,30 @@ def classes():
 
 @app.route("/add_class", methods=["POST"])
 def add_class():
-    class_name = request.form["class_name"]
+    # 1. Get and clean the class name
+    class_name = request.form["class_name"].strip()
+    
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
+    
+    # 2. Check if class already exists (Case Insensitive)
+    c.execute("SELECT id FROM classes WHERE LOWER(class_name)=LOWER(?)", (class_name,))
+    existing_class = c.fetchone()
+    
+    if existing_class:
+        conn.close()
+        # 3. If duplicate, flash error and return
+        flash(f"Class '{class_name}' already exists!", "error")
+        return redirect("/classes")
+    
+    # 4. If unique, insert
     c.execute("INSERT INTO classes (class_name) VALUES (?)", (class_name,))
     conn.commit()
     conn.close()
+    
+    flash(f"Class '{class_name}' added successfully!", "success")
     return redirect("/classes")
-
-# ---------- TIMETABLE ----------
-@app.route("/timetable")
-def timetable():
-    selected_class_id = request.args.get("class_id")
-    conn = sqlite3.connect('attendance.db')
-    c = conn.cursor()
-    c.execute("SELECT id, class_name FROM classes")
-    classes = c.fetchall()
-    timetable = []
-    if selected_class_id:
-        c.execute("""
-            SELECT timetable.id, classes.class_name, timetable.subject, timetable.start_time, timetable.end_time
-            FROM timetable
-            JOIN classes ON timetable.class_id = classes.id
-            WHERE timetable.class_id=?
-            ORDER BY timetable.start_time
-        """, (selected_class_id,))
-        timetable = c.fetchall()
-    conn.close()
-    return render_template("timetable.html", classes=classes, timetable=timetable,
-                           selected_class_id=int(selected_class_id) if selected_class_id else None)
-
-@app.route("/add_timetable", methods=["POST"])
-def add_timetable():
-    class_id = request.form["class_id"]
-    subject = request.form["subject"]
-    start_time = request.form["start_time"]
-    end_time = request.form["end_time"]
-    conn = sqlite3.connect('attendance.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO timetable (class_id, subject, start_time, end_time) VALUES (?,?,?,?)",
-              (class_id, subject, start_time, end_time))
-    conn.commit()
-    conn.close()
-    return redirect(f"/timetable?class_id={class_id}")
-
-@app.route("/delete_timetable/<int:tid>", methods=["POST"])
-def delete_timetable(tid):
-    if session.get("role") != "admin":
-        return "Unauthorized", 403
-    class_id = request.form.get("class_id")
-    conn = sqlite3.connect('attendance.db')
-    c = conn.cursor()
-    c.execute("SELECT subject FROM timetable WHERE id=?", (tid,))
-    row = c.fetchone()
-    if row:
-        subject_to_delete = row[0]
-        c.execute("""
-            DELETE FROM attendance
-            WHERE subject=? AND student_id IN (
-                SELECT id FROM students WHERE class_id=?
-            )
-        """, (subject_to_delete, class_id))
-    c.execute("DELETE FROM timetable WHERE id=?", (tid,))
-    conn.commit()
-    conn.close()
-    return redirect(f"/timetable?class_id={class_id}")
-
-@app.route("/edit_timetable/<int:tid>", methods=["GET", "POST"])
-def edit_timetable(tid):
-    if session.get("role") != "admin":
-        return "Unauthorized", 403
-    conn = sqlite3.connect('attendance.db')
-    c = conn.cursor()
-    if request.method == "POST":
-        subject = request.form["subject"]
-        start_time = request.form["start_time"]
-        end_time = request.form["end_time"]
-        class_id = request.form["class_id"]
-        c.execute("UPDATE timetable SET subject=?, start_time=?, end_time=? WHERE id=?",
-                  (subject, start_time, end_time, tid))
-        conn.commit()
-        conn.close()
-        return redirect(f"/timetable?class_id={class_id}")
-    else:
-        c.execute("SELECT class_id, subject, start_time, end_time FROM timetable WHERE id=?", (tid,))
-        row = c.fetchone()
-        conn.close()
-        if row:
-            class_id, subject, start_time, end_time = row
-            return render_template("edit_timetable.html", tid=tid, class_id=class_id,
-                                   subject=subject, start_time=start_time, end_time=end_time)
-    return "Not found", 404
-
+    
 # ---------- ADD STUDENT (dropdown) ----------
 @app.route("/add_student_form")
 def add_student_form():
@@ -348,16 +259,30 @@ def subjects():
 def add_subject():
     if session.get("role") != "admin":
         return "Unauthorized", 403
+    
     class_id = request.form["class_id"]
-    name = request.form["name"]
+    name = request.form["name"].strip()  # .strip() removes accidental spaces
     
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
+    
+    # 1. Check if subject already exists for this specific class
+    # We use LOWER() to ensure "Math" and "math" are treated as duplicates
+    c.execute("SELECT id FROM subjects WHERE class_id=? AND LOWER(name)=LOWER(?)", (class_id, name))
+    existing_subject = c.fetchone()
+    
+    if existing_subject:
+        conn.close()
+        # 2. If duplicate found, flash ERROR and return
+        flash(f"Subject '{name}' already exists in this class!", "error")
+        return redirect(f"/subjects?class_id={class_id}")
+    
+    # 3. If unique, proceed with INSERT
     c.execute("INSERT INTO subjects (class_id, name) VALUES (?,?)", (class_id, name))
     conn.commit()
     conn.close()
     
-    flash("Subject added successfully!", "success")
+    flash(f"Subject '{name}' added successfully!", "success")
     return redirect(f"/subjects?class_id={class_id}")
 
 @app.route("/delete_subject/<int:sid>", methods=["POST"])
@@ -436,85 +361,137 @@ def mark_attendance():
 def admin_attendance():
     if session.get("role") != "admin":
         return "Unauthorized", 403
+
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
+
+    # ------------------- POST (Update Changes) -------------------
     if request.method == "POST":
         for key, value in request.form.items():
             if key.startswith("status_"):
                 att_id = key.split("_")[1]
                 c.execute("UPDATE attendance SET status=? WHERE id=?", (value, att_id))
+
         conn.commit()
+        conn.close()
+
+        # Flash success message
+        flash("Attendance updated successfully!", "success")
+
+        # Preserve filters on redirect
+        params = []
+        for p in ["class_id", "subject", "hour", "date", "student_id"]:
+            v = request.args.get(p)
+            if v:
+                params.append(f"{p}={v}")
+        qs = "&".join(params)
+
+        return redirect(f"/admin/attendance?{qs}")
+
+    # ------------------- GET (Normal Page Load) -------------------
     class_id = request.args.get("class_id")
     subject = request.args.get("subject")
     hour = request.args.get("hour")
     date = request.args.get("date", datetime.date.today().strftime("%Y-%m-%d"))
     student_id = request.args.get("student_id")
+
     try:
         class_id_int = int(class_id) if class_id else None
     except:
         class_id_int = None
+
+    # Fetch class list
     c.execute("SELECT id, class_name FROM classes")
     classes = c.fetchall()
+
     subjects = []
     students_list = []
     attendance_records = []
+
     if class_id_int:
-        # Fetch subjects from subjects table
+        # Subjects list
         c.execute("SELECT name FROM subjects WHERE class_id=? ORDER BY name", (class_id_int,))
         subjects = [s[0] for s in c.fetchall()]
+
+        # Students list
         c.execute("SELECT id, usn, name FROM students WHERE class_id=? ORDER BY name", (class_id_int,))
         students_list = c.fetchall()
+
+        # Base attendance query
         if subject:
-            query = """SELECT attendance.id, students.usn, students.name, attendance.subject, attendance.hour, attendance.date, attendance.status
-                       FROM attendance JOIN students ON attendance.student_id = students.id
+            query = """SELECT attendance.id, students.usn, students.name, attendance.subject, attendance.hour,
+                              attendance.date, attendance.status
+                       FROM attendance
+                       JOIN students ON attendance.student_id = students.id
                        WHERE students.class_id=? AND attendance.subject=? AND attendance.date=?"""
             params = [class_id_int, subject, date]
+
             if hour:
                 query += " AND attendance.hour=?"
                 params.append(hour)
         else:
-            query = """SELECT attendance.id, students.usn, students.name, attendance.subject, attendance.hour, attendance.date, attendance.status
-                       FROM attendance JOIN students ON attendance.student_id = students.id
+            query = """SELECT attendance.id, students.usn, students.name, attendance.subject, attendance.hour,
+                              attendance.date, attendance.status
+                       FROM attendance
+                       JOIN students ON attendance.student_id = students.id
                        WHERE students.class_id=? AND attendance.date=?"""
             params = [class_id_int, date]
+
             if hour:
                 query += " AND attendance.hour=?"
                 params.append(hour)
+
         if student_id:
             query += " AND students.id=?"
             params.append(student_id)
+
         query += " ORDER BY students.usn, attendance.subject, attendance.hour"
         c.execute(query, params)
-        attendance_records = c.fetchall() # Always a list, works for single/multiple records 
+
+        attendance_records = c.fetchall()
+
     conn.close()
-    return render_template("admin_attendance.html",
-                           classes=classes, subjects=subjects,
-                           students_list=students_list,
-                           attendance_records=attendance_records,
-                           selected_class=class_id_int,
-                           selected_subject=subject,
-                           selected_hour=hour,
-                           selected_date=date,
-                           selected_student=int(student_id) if student_id else None)
+
+    return render_template(
+        "admin_attendance.html",
+        classes=classes,
+        subjects=subjects,
+        students_list=students_list,
+        attendance_records=attendance_records,
+        selected_class=class_id_int,
+        selected_subject=subject,
+        selected_hour=hour,
+        selected_date=date,
+        selected_student=int(student_id) if student_id else None
+    )
 
 @app.route("/delete_attendance/<int:att_id>", methods=["POST"])
 def delete_attendance(att_id):
     if session.get("role") != "admin":
         return "Unauthorized", 403
-    class_id = request.form.get("class_id")
-    subject = request.form.get("subject")
-    date = request.form.get("date")
-    student_id = request.form.get("student_id")
+    
+    # 1. Capture ALL filters from the form (including hidden inputs)
+    class_id = request.form.get("class_id") or ""
+    subject = request.form.get("subject") or ""
+    hour = request.form.get("hour") or ""     # <--- Ensure this is captured
+    date = request.form.get("date") or ""
+    student_id = request.form.get("student_id") or ""
+
+    # 2. Perform Deletion
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
     c.execute("DELETE FROM attendance WHERE id=?", (att_id,))
     conn.commit()
     conn.close()
-    redir = f"/admin/attendance?class_id={class_id}&subject={subject}&date={date}"
-    if student_id:
-        redir += f"&student_id={student_id}"
-    return redirect(redir)
 
+    # 3. Flash Message
+    flash("Attendance record deleted successfully.", "success")
+
+    # 4. Redirect preserving ALL filters
+    redir = f"/admin/attendance?class_id={class_id}&subject={subject}&hour={hour}&date={date}&student_id={student_id}"
+    
+    return redirect(redir)
+    
 # ---------- ADMIN STUDENT ATTENDANCE HISTORY ----------
 @app.route("/admin/student_attendance_history", methods=["GET", "POST"])
 def student_attendance_history():

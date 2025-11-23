@@ -5,6 +5,30 @@
 {% block content %}
 <h2>Manage Attendance Records</h2>
 
+<div class="flash-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category if category != 'message' else 'success' }}">
+                    {% if category == 'success' %}
+                        <i class="fas fa-check-circle"></i>
+                    {% elif category == 'error' %}
+                        <i class="fas fa-exclamation-circle"></i>
+                    {% else %}
+                        <i class="fas fa-info-circle"></i>
+                    {% endif %}
+                    
+                    <span>{{ message }}</span>
+                    
+                    <button type="button" class="close-btn" onclick="this.parentElement.remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
 <div class="card">
     <form method="GET" action="/admin/attendance" class="dashboard-grid"
         style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 0;">
@@ -62,13 +86,14 @@
 
 {% if attendance_records %}
 <div class="card">
-    <form method="POST" action="/admin/attendance">
-        <!-- Hidden fields to preserve filters -->
-        {% if selected_class %}<input type="hidden" name="class_id" value="{{ selected_class }}">{% endif %}
-        {% if selected_subject %}<input type="hidden" name="subject" value="{{ selected_subject }}">{% endif %}
-        {% if selected_hour %}<input type="hidden" name="hour" value="{{ selected_hour }}">{% endif %}
-        {% if selected_date %}<input type="hidden" name="date" value="{{ selected_date }}">{% endif %}
-        {% if selected_student %}<input type="hidden" name="student_id" value="{{ selected_student }}">{% endif %}
+    <form method="POST" 
+          action="/admin/attendance?class_id={{ selected_class or '' }}&subject={{ selected_subject or '' }}&hour={{ selected_hour or '' }}&date={{ selected_date or '' }}&student_id={{ selected_student or '' }}">
+        
+        <input type="hidden" name="class_id" value="{{ selected_class or '' }}">
+        <input type="hidden" name="subject" value="{{ selected_subject or '' }}">
+        <input type="hidden" name="hour" value="{{ selected_hour or '' }}">
+        <input type="hidden" name="date" value="{{ selected_date or '' }}">
+        <input type="hidden" name="student_id" value="{{ selected_student or '' }}">
 
         <table>
             <thead>
@@ -90,8 +115,8 @@
                     <td>{{ record[1] }}</td>
                     <td>{{ record[2] }}</td>
                     <td>{{ record[3] }}</td>
-                    <td>{{ record[4] }}</td> <!-- Hour -->
-                    <td>{{ record[5] }}</td> <!-- Date -->
+                    <td>{{ record[4] }}</td>
+                    <td>{{ record[5] }}</td>
                     <td>
                         <select name="status_{{ record[0] }}" style="padding: 5px; width: auto;">
                             <option value="Present" {% if record[6]=='Present' %}selected{% endif %}>Present</option>
@@ -109,12 +134,12 @@
 
         <div style="margin-top: 20px; text-align: right;">
             <button type="submit" class="btn btn-success">Update Changes</button>
-            <a href="{{ url_for('download_attendance', class_id=selected_class, subject=selected_subject, date=selected_date, student_id=selected_student) }}"
-                class="btn btn-primary">Download CSV</a>
         </div>
     </form>
 </div>
 {% else %}
-<div class="alert alert-info">No attendance records found for the selected filters.</div>
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i> No attendance records found for the selected filters.
+</div>
 {% endif %}
 {% endblock %}
