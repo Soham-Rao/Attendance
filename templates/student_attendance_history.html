@@ -77,7 +77,7 @@
     </div>
 
     <div class="dashboard-grid"
-        style="grid-template-columns: repeat(4, 1fr); margin-top: 0; margin-bottom: 30px; gap: 15px;">
+        style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 0; margin-bottom: 30px; gap: 15px;">
         <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 12px;">
             <div style="font-size: 2rem; font-weight: bold; color: var(--primary);">{{ total_records }}</div>
             <div class="text-muted">Total Records</div>
@@ -90,8 +90,10 @@
             <div style="font-size: 2rem; font-weight: bold; color: var(--error);">{{ absent_count }}</div>
             <div class="text-muted">Absent</div>
         </div>
-        <div style="text-align: center; padding: 15px; background: rgba(108, 92, 231, 0.1); border-radius: 12px;">
-            <div style="font-size: 2rem; font-weight: bold; color: var(--primary);">{{ attendance_percentage }}%</div>
+        <div
+            style="text-align: center; padding: 15px; background: rgba(108, 92, 231, 0.1); border-radius: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--primary); word-break: break-word;">{{
+                attendance_percentage }}%</div>
             <div class="text-muted">Overall Rate</div>
         </div>
     </div>
@@ -118,7 +120,7 @@
     </div>
     {% endif %}
 
-    <div class="table-container">
+    <div class="table-container" style="width: 100%; overflow-x: auto;">
         <table>
             <thead>
                 {% if selected_student_id %}

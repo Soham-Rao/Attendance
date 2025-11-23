@@ -7,6 +7,9 @@ import pickle
 from io import StringIO
 import csv
 import datetime
+
+# Define IST Timezone
+IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
 from database import init_db
 from face_recog import capture_face_encoding, run_live_attendance, get_class_encodings, process_frame
 import base64
@@ -15,6 +18,9 @@ import cv2
 import json
 from utils.hashing import calculate_hash, get_last_hash, recalculate_chain
 from verify_integrity import verify_chain
+
+# Define IST Timezone
+IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
 
 app = Flask(__name__)
 app.secret_key = "face_attendance_secret"
@@ -645,7 +651,7 @@ def mark_attendance():
         total_students = c.fetchone()[0]
 
         # Fetch existing present students for this session
-        date_today = datetime.date.today().strftime("%Y-%m-%d")
+        date_today = datetime.datetime.now(IST).date().strftime("%Y-%m-%d")
         c.execute("""
             SELECT attendance.student_id, students.name
             FROM attendance 
@@ -724,7 +730,7 @@ def admin_attendance():
                         
                         # Teacher requests change
                         teacher_id = session["username"]
-                        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        timestamp = datetime.datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
                         
                         # Build final comment with individual comment if provided
                         if use_same_comment:
@@ -783,7 +789,7 @@ def admin_attendance():
     class_id = request.args.get("class_id")
     subject = request.args.get("subject")
     hour = request.args.get("hour")
-    date = request.args.get("date", datetime.date.today().strftime("%Y-%m-%d"))
+    date = request.args.get("date", datetime.datetime.now(IST).date().strftime("%Y-%m-%d"))
     student_id = request.args.get("student_id")
 
     try:

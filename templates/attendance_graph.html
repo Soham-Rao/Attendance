@@ -11,40 +11,42 @@
 
 <div class="card mt-4">
     <h3>Detailed Records</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Hour</th>
-                <th>Status</th>
-                <th>Review</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for record in records %}
-            <tr {% if record[0] in pending_ids %}class="pending-change"{% endif %}>
-                <td>{{ record[1] }}</td>
-                <td>{{ record[3] }}</td>
-                <td>
-                    <span class="{% if record[2] == 'Present' %}text-success{% else %}text-danger{% endif %}"
-                        style="font-weight: bold;">
-                        {{ record[2] }}
-                    </span>
-                </td>
-                <td>
-                    {% if record[2] == 'Absent' %}
-                    <button class="btn btn-sm btn-primary"
-                        onclick="openRequestModal('{{ record[0] }}', '{{ record[1] }}')">
-                        Request Change
-                    </button>
-                    {% else %}
-                    <span class="text-muted">-</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Hour</th>
+                    <th>Status</th>
+                    <th>Review</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                <tr {% if record[0] in pending_ids %}class="pending-change" {% endif %}>
+                    <td>{{ record[1] }}</td>
+                    <td>{{ record[3] }}</td>
+                    <td>
+                        <span class="{% if record[2] == 'Present' %}text-success{% else %}text-danger{% endif %}"
+                            style="font-weight: bold;">
+                            {{ record[2] }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if record[2] == 'Absent' %}
+                        <button class="btn btn-sm btn-primary"
+                            onclick="openRequestModal('{{ record[0] }}', '{{ record[1] }}')">
+                            Request Change
+                        </button>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <div class="mt-3 text-center">
@@ -188,14 +190,14 @@
     }
 </style>
 <style>
-.pending-change {
-    background-color: #fff3cd !important;
-    border-left: 4px solid #ff9800;
-    transition: all 0.3s ease;
-}
+    .pending-change {
+        background-color: #fff3cd !important;
+        border-left: 4px solid #ff9800;
+        transition: all 0.3s ease;
+    }
 
-.pending-change td {
-    font-weight: 500;
-}
+    .pending-change td {
+        font-weight: 500;
+    }
 </style>
 {% endblock %}
