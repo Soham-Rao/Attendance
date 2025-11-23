@@ -3,32 +3,10 @@
 {% block title %}Manage Classes{% endblock %}
 
 {% block content %}
-
-<div class="flash-container">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category if category != 'message' else 'success' }}">
-                    {% if category == 'success' %}
-                        <i class="fas fa-check-circle"></i>
-                    {% elif category == 'error' %}
-                        <i class="fas fa-exclamation-circle"></i>
-                    {% else %}
-                        <i class="fas fa-info-circle"></i>
-                    {% endif %}
-                    
-                    <span>{{ message }}</span>
-                    
-                    <button type="button" class="close-btn" onclick="this.parentElement.remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+<div class="mb-4">
+    <h2>Manage Classes</h2>
+    <p class="text-muted">Add or remove classes</p>
 </div>
-
-<h2>Manage Classes</h2>
 
 <div class="row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
     <div class="col-md-6">
@@ -53,6 +31,7 @@
                     <tr>
                         <th>ID</th>
                         <th>Class Name</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -60,6 +39,13 @@
                     <tr>
                         <td>{{ cls[0] }}</td>
                         <td>{{ cls[1] }}</td>
+                        <td>
+                            <form action="/delete_class/{{ cls[0] }}" method="POST" style="display:inline;"
+                                onsubmit="return confirm('Are you sure you want to delete this class? This will also delete all students and subjects associated with it.');">
+                                <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i>
+                                    Delete</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

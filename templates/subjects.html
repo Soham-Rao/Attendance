@@ -8,28 +8,6 @@
     <p class="text-muted">Add or remove subjects for a class</p>
 </div>
 
-<div class="flash-container">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category if category != 'message' else 'success' }}">
-                    {% if category == 'success' %}
-                        <i class="fas fa-check-circle"></i>
-                    {% elif category == 'error' %}
-                        <i class="fas fa-exclamation-circle"></i>
-                    {% else %}
-                        <i class="fas fa-info-circle"></i>
-                    {% endif %}
-                    <span>{{ message }}</span>
-                    <button type="button" class="close-btn" onclick="this.parentElement.remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-</div>
-
 <div class="card mb-4">
     <form method="GET" action="/subjects">
         <div class="form-group">
@@ -63,9 +41,10 @@
         {% if subjects %}
         <ul style="list-style: none; padding: 0;">
             {% for sid, sname in subjects %}
-            <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee;">
+            <li
+                style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee;">
                 <span style="font-weight: 500;">{{ sname }}</span>
-                
+
                 <button type="button" class="btn btn-danger" style="padding: 5px 10px; font-size: 0.8rem;"
                     onclick="confirmDelete('{{ sid }}')">
                     <i class="fas fa-trash"></i> Delete

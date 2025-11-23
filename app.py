@@ -229,18 +229,106 @@ def add_class():
     
     flash(f"Class '{class_name}' added successfully!", "success")
     return redirect("/classes")
+
+@app.route("/delete_class/<int:class_id>", methods=["POST"])
+def delete_class(class_id):
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    # Optional: Check if class exists or has dependencies (students, subjects)
+    # For now, we'll assume cascade delete or manual cleanup is desired, 
+    # but SQLite foreign keys need to be enabled for cascade. 
+    # Let's do a manual cleanup for safety if foreign keys aren't strict.
+    
+    # Delete students
+    c.execute("DELETE FROM students WHERE class_id=?", (class_id,))
+    # Delete subjects
+    c.execute("DELETE FROM subjects WHERE class_id=?", (class_id,))
+    # Delete teacher assignments
+    c.execute("DELETE FROM teacher_assignments WHERE class_id=?", (class_id,))
+    # Delete the class
+    c.execute("DELETE FROM classes WHERE id=?", (class_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    flash("Class and associated data deleted successfully!", "success")
+    return redirect("/classes")
     
 # ---------- ADD STUDENT (dropdown) ----------
-@app.route("/add_student_form")
-def add_student_form():
+@app.route("/manage_students")
+def manage_students():
     if session.get("role") != "admin":
         return "Unauthorized", 403
     conn = sqlite3.connect('attendance.db')
     c = conn.cursor()
     c.execute("SELECT id, class_name FROM classes ORDER BY class_name")
     classes = c.fetchall()
+    
+    # Fetch all students with class names
+    c.execute("""
+        SELECT s.id, s.usn, s.name, s.dob, s.class_id, c.class_name 
+        FROM students s
+        JOIN classes c ON s.class_id = c.id
+        ORDER BY c.class_name, s.usn
+    """)
+    students = c.fetchall()
+    
     conn.close()
-    return render_template("add_student.html", classes=classes)
+    return render_template("manage_students.html", classes=classes, students=students)
+
+@app.route("/delete_student/<int:student_id>", methods=["POST"])
+def delete_student(student_id):
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+    
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    # Get student info to delete face image
+    c.execute("SELECT usn FROM students WHERE id=?", (student_id,))
+    student = c.fetchone()
+    
+    if student:
+        usn = student[0]
+        # Try to find and delete the image file
+        # We don't store the extension, so we might need to check common ones or store it
+        # For now, let's just delete the DB record. 
+        # Ideally, we should clean up 'registered_faces' too.
+        for ext in ['.jpg', '.jpeg', '.png']:
+            path = os.path.join('registered_faces', f"{usn}{ext}")
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except:
+                    pass
+    
+    c.execute("DELETE FROM students WHERE id=?", (student_id,))
+    # Also delete attendance records?
+    c.execute("DELETE FROM attendance WHERE student_id=?", (student_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    flash("Student deleted successfully!", "success")
+    return redirect("/manage_students")
+
+@app.route("/delete_assignment/<int:assignment_id>", methods=["POST"])
+def delete_assignment(assignment_id):
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+        
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM teacher_assignments WHERE id=?", (assignment_id,))
+    conn.commit()
+    conn.close()
+    
+    flash("Assignment deleted successfully!", "success")
+    return redirect("/admin/manage_teachers")
 
 @app.route("/add_student", methods=["POST"])
 def add_student():
@@ -280,7 +368,7 @@ def add_student():
             shutil.copyfile(image_path, dest_path)
         else:
             flash("Source image file not found", "danger")
-            return redirect("/add_student_form")
+            return redirect("/manage_students")
     else:
         flash("No image provided", "danger")
         return redirect("/add_student_form")

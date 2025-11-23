@@ -73,6 +73,7 @@
                     <th>Teacher</th>
                     <th>Class</th>
                     <th>Subject</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -81,6 +82,12 @@
                     <td>{{ assignment[1] }}</td>
                     <td>{{ assignment[2] }}</td>
                     <td>{{ assignment[3] }}</td>
+                    <td>
+                        <form action="/delete_assignment/{{ assignment[0] }}" method="POST" style="display:inline;"
+                            onsubmit="return confirm('Are you sure you want to remove this assignment?');">
+                            <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </td>
                 </tr>
                 {% else %}
                 <tr>
