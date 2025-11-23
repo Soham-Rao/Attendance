@@ -5,7 +5,7 @@
 {% block content %}
 <div class="mb-4">
     <h2>Pending Attendance Changes</h2>
-    <p class="text-muted">Review and approve/reject change requests from teachers.</p>
+    <p class="text-muted">Review and approve/reject change requests from teachers and students.</p>
 </div>
 
 <div class="flash-container">
@@ -27,12 +27,13 @@
             <thead>
                 <tr>
                     <th>Date</th>
-                    <th>Teacher</th>
+                    <th>Requested By</th>
                     <th>Class / Subject</th>
                     <th>Student</th>
                     <th>Old Status</th>
                     <th>New Status</th>
                     <th>Reason</th>
+                    <th>Document</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -40,7 +41,11 @@
                 {% for change in pending_changes %}
                 <tr>
                     <td>{{ change['timestamp'] }}</td>
-                    <td>{{ change['teacher_name'] }}</td>
+                    <td>
+                        <strong>{{ change['requester_name'] }}</strong><br>
+                        <span class="badge badge-secondary" style="font-size: 0.8em;">{{ change['request_role']|title
+                            }}</span>
+                    </td>
                     <td>{{ change['class_name'] }} - {{ change['subject'] }}</td>
                     <td>{{ change['student_name'] }} ({{ change['usn'] }})</td>
                     <td>
@@ -57,6 +62,16 @@
                         <div style="max-width: 200px; white-space: normal; font-size: 0.9rem; font-style: italic;">
                             "{{ change['comment'] }}"
                         </div>
+                    </td>
+                    <td>
+                        {% if change['document_path'] %}
+                        <a href="{{ url_for('static', filename=change['document_path']) }}" target="_blank"
+                            class="btn btn-sm btn-primary">
+                            <i class="fas fa-file-alt"></i> View
+                        </a>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
                     </td>
                     <td>
                         <div style="display: flex; gap: 5px;">
@@ -87,4 +102,28 @@
 <div class="text-center mt-4">
     <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
 </div>
+
+<style>
+    .badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .badge-success {
+        background: rgba(0, 184, 148, 0.1);
+        color: #00b894;
+    }
+
+    .badge-danger {
+        background: rgba(214, 48, 49, 0.1);
+        color: #d63031;
+    }
+
+    .badge-secondary {
+        background: #eee;
+        color: #636e72;
+    }
+</style>
 {% endblock %}

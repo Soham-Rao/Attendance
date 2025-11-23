@@ -570,8 +570,8 @@ def admin_attendance():
                         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         c.execute("""
                             INSERT INTO pending_attendance_changes 
-                            (attendance_id, new_status, requested_by, timestamp, comment)
-                            VALUES (?, ?, ?, ?, ?)
+                            (attendance_id, new_status, requested_by, timestamp, comment, request_role)
+                            VALUES (?, ?, ?, ?, ?, 'teacher')
                         """, (att_id, value, teacher_id, timestamp, reason))
                         changes_made = True
 
@@ -1028,7 +1028,7 @@ def attendance_graph(subject):
     c = conn.cursor()
     c.execute("SELECT id FROM students WHERE usn=?", (usn,))
     student_id = c.fetchone()[0]
-    c.execute("""SELECT date, status, hour 
+    c.execute("""SELECT id, date, status, hour 
                  FROM attendance 
                  WHERE student_id=? AND subject=?
                  ORDER BY date, hour""", (student_id, subject))
@@ -1036,8 +1036,12 @@ def attendance_graph(subject):
     dates = []
     statuses = []
     for record in attendance_records:
-        dates.append(record[0])
-        statuses.append(1 if record[1].strip().lower() == "present" else 0)
+        # Format: "date - Hour X"
+        dates.append(f"{record[1]} - Hour {record[3]}")
+        # Debug: print the status to check what we're getting
+        status_str = record[2].strip() if record[2] else ""
+        status_value = 1 if status_str.lower() == "present" else 0
+        statuses.append(status_value)
     conn.close()
     return render_template("attendance_graph.html", 
                           subject=subject, 
@@ -1188,15 +1192,20 @@ def admin_approvals():
     # but attendance record has subject too. Let's use attendance subject.
     
     # Improved query using attendance subject
+    # Improved query using attendance subject and handling both student/teacher requests
     c.execute("""
-        SELECT p.id, p.timestamp, t.name as teacher_name, c.class_name, a.subject, 
+        SELECT p.id, p.timestamp, 
+               CASE WHEN p.request_role = 'teacher' THEN t.name ELSE s_req.name END as requester_name,
+               p.request_role,
+               c.class_name, a.subject, 
                s.name as student_name, s.usn, 
-               a.status as old_status, p.new_status, p.comment
+               a.status as old_status, p.new_status, p.comment, p.document_path
         FROM pending_attendance_changes p
         JOIN attendance a ON p.attendance_id = a.id
-        JOIN teachers t ON p.requested_by = t.teacher_id
         JOIN students s ON a.student_id = s.id
         JOIN classes c ON s.class_id = c.id
+        LEFT JOIN teachers t ON p.requested_by = t.teacher_id
+        LEFT JOIN students s_req ON p.requested_by = s_req.usn
         ORDER BY p.timestamp DESC
     """)
     
@@ -1206,18 +1215,69 @@ def admin_approvals():
         pending_changes.append({
             "id": row[0],
             "timestamp": row[1],
-            "teacher_name": row[2],
-            "class_name": row[3],
-            "subject": row[4],
-            "student_name": row[5],
-            "usn": row[6],
-            "old_status": row[7],
-            "new_status": row[8],
-            "comment": row[9]
+            "requester_name": row[2],
+            "request_role": row[3],
+            "class_name": row[4],
+            "subject": row[5],
+            "student_name": row[6],
+            "usn": row[7],
+            "old_status": row[8],
+            "new_status": row[9],
+            "comment": row[10],
+            "document_path": row[11]
         })
         
     conn.close()
     return render_template("admin_approvals.html", pending_changes=pending_changes)
+
+@app.route("/student/request_change", methods=["POST"])
+def student_request_change():
+    if "username" not in session or session["role"] != "student":
+        return "Unauthorized", 403
+        
+    attendance_id = request.form.get("attendance_id")
+    reason = request.form.get("reason")
+    usn = session["username"]
+    
+    # Handle file upload
+    document_path = None
+    if "document" in request.files:
+        file = request.files["document"]
+        if file and file.filename:
+            filename = f"{usn}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}"
+            # Ensure uploads directory exists
+            upload_dir = os.path.join("static", "uploads", "documents")
+            if not os.path.exists(upload_dir):
+                os.makedirs(upload_dir)
+            
+            filepath = os.path.join(upload_dir, filename)
+            file.save(filepath)
+            document_path = f"uploads/documents/{filename}" # Relative path for serving
+            
+    conn = sqlite3.connect('attendance.db')
+    c = conn.cursor()
+    
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Check if request already exists
+    c.execute("SELECT id FROM pending_attendance_changes WHERE attendance_id=? AND requested_by=?", (attendance_id, usn))
+    if c.fetchone():
+        flash("You have already submitted a request for this record.", "warning")
+    else:
+        c.execute("""
+            INSERT INTO pending_attendance_changes 
+            (attendance_id, new_status, requested_by, timestamp, comment, request_role, document_path)
+            VALUES (?, ?, ?, ?, ?, 'student', ?)
+        """, (attendance_id, 'Present', usn, timestamp, reason, document_path))
+        conn.commit()
+        flash("Request submitted successfully!", "success")
+        
+    conn.close()
+    # Redirect back to the graph page. We need the subject.
+    # Since we don't have subject easily available here without querying, 
+    # we can use the referrer or just redirect to dashboard.
+    # Better: Query subject from attendance_id
+    return redirect(request.referrer or "/dashboard")
 
 @app.route("/approve_change/<int:change_id>", methods=["POST"])
 def approve_change(change_id):

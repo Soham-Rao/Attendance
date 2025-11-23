@@ -17,18 +17,29 @@
                 <th>Date</th>
                 <th>Hour</th>
                 <th>Status</th>
+                <th>Review</th>
             </tr>
         </thead>
         <tbody>
             {% for record in records %}
             <tr>
-                <td>{{ record[0] }}</td>
-                <td>{{ record[2] }}</td>
+                <td>{{ record[1] }}</td>
+                <td>{{ record[3] }}</td>
                 <td>
-                    <span class="{% if record[1] == 'Present' %}text-success{% else %}text-danger{% endif %}"
+                    <span class="{% if record[2] == 'Present' %}text-success{% else %}text-danger{% endif %}"
                         style="font-weight: bold;">
-                        {{ record[1] }}
+                        {{ record[2] }}
                     </span>
+                </td>
+                <td>
+                    {% if record[2] == 'Absent' %}
+                    <button class="btn btn-sm btn-primary"
+                        onclick="openRequestModal('{{ record[0] }}', '{{ record[1] }}')">
+                        Request Change
+                    </button>
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
@@ -38,6 +49,39 @@
 
 <div class="mt-3 text-center">
     <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<!-- Request Change Modal -->
+<div id="requestModal" class="modal"
+    style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+    <div class="modal-content"
+        style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px;">
+        <span class="close" onclick="closeRequestModal()"
+            style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+        <h3>Request Attendance Change</h3>
+        <p>Date: <span id="modalDate"></span></p>
+
+        <form action="/student/request_change" method="POST" enctype="multipart/form-data">
+            <input type="hidden" id="modalAttendanceId" name="attendance_id">
+
+            <div class="form-group">
+                <label for="reason">Reason for Absence:</label>
+                <textarea id="reason" name="reason" rows="3" required
+                    style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="document">Upload Document (Optional):</label>
+                <input type="file" id="document" name="document" accept=".pdf,.jpg,.jpeg,.png">
+                <small class="text-muted">Medical certificate, volunteering proof, etc.</small>
+            </div>
+
+            <div class="text-center mt-3">
+                <button type="submit" class="btn btn-success">Submit Request</button>
+                <button type="button" class="btn btn-secondary" onclick="closeRequestModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- Chart.js -->
@@ -52,8 +96,6 @@
     // Define Theme Colors
     const greenColor = '#00b894';
     const redColor = '#d63031';
-    const greenBg = 'rgba(0, 184, 148, 0.2)';
-    const redBg = 'rgba(214, 48, 49, 0.2)';
 
     new Chart(ctx, {
         type: 'line',
@@ -62,22 +104,16 @@
             datasets: [{
                 label: 'Attendance',
                 data: statuses,
+                borderColor: '#6c5ce7',
                 borderWidth: 2,
                 fill: true,
+                backgroundColor: 'rgba(108, 92, 231, 0.1)',
                 tension: 0.1,
                 stepped: true,
-
-                // Color the points based on value (1=Green, 0=Red)
                 pointBackgroundColor: statuses.map(s => s === 1 ? greenColor : redColor),
                 pointBorderColor: statuses.map(s => s === 1 ? greenColor : redColor),
                 pointRadius: 5,
-                pointHoverRadius: 7,
-
-                // Color the line segments and fill area based on value
-                segment: {
-                    borderColor: ctx => ctx.p0.parsed.y === 1 ? greenColor : redColor,
-                    backgroundColor: ctx => ctx.p0.parsed.y === 1 ? greenBg : redBg,
-                }
+                pointHoverRadius: 7
             }]
         },
         options: {
@@ -85,17 +121,15 @@
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 1.2, // Adds a little space at top
+                    max: 1.2,
                     ticks: {
                         stepSize: 1,
                         font: { weight: 'bold' },
-                        // Custom labels for Y-axis
                         callback: function (value) {
                             if (value === 0) return 'Absent';
                             if (value === 1) return 'Present';
                             return '';
                         },
-                        // Color the Y-axis text
                         color: (context) => {
                             if (context.tick.value === 1) return greenColor;
                             if (context.tick.value === 0) return redColor;
@@ -106,7 +140,7 @@
             },
             plugins: {
                 legend: {
-                    display: false // Hide legend since colors explain the status
+                    display: false
                 },
                 tooltip: {
                     callbacks: {
@@ -118,6 +152,24 @@
             }
         }
     });
+
+    // Modal Logic
+    function openRequestModal(id, date) {
+        document.getElementById('modalAttendanceId').value = id;
+        document.getElementById('modalDate').textContent = date;
+        document.getElementById('requestModal').style.display = "block";
+    }
+
+    function closeRequestModal() {
+        document.getElementById('requestModal').style.display = "none";
+    }
+
+    // Close modal if clicked outside
+    window.onclick = function (event) {
+        if (event.target == document.getElementById('requestModal')) {
+            closeRequestModal();
+        }
+    }
 </script>
 
 <!-- CSS to ensure the text colors apply correctly -->
@@ -128,6 +180,11 @@
 
     .text-danger {
         color: #d63031 !important;
+    }
+
+    .btn-sm {
+        padding: 5px 10px;
+        font-size: 0.8rem;
     }
 </style>
 {% endblock %}
