@@ -7,9 +7,6 @@ import pickle
 from io import StringIO
 import csv
 import datetime
-
-# Define IST Timezone
-IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
 from database import init_db
 from face_recog import capture_face_encoding, run_live_attendance, get_class_encodings, process_frame
 import base64
@@ -651,7 +648,7 @@ def mark_attendance():
         total_students = c.fetchone()[0]
 
         # Fetch existing present students for this session
-        date_today = datetime.datetime.now(IST).date().strftime("%Y-%m-%d")
+        date_today = datetime.datetime.now(IST).strftime("%Y-%m-%d")
         c.execute("""
             SELECT attendance.student_id, students.name
             FROM attendance 
@@ -1326,7 +1323,7 @@ def api_submit_attendance():
     c.execute("SELECT id FROM students WHERE class_id=?", (class_id,))
     all_students = [row[0] for row in c.fetchall()]
     
-    date_today = datetime.date.today().strftime("%Y-%m-%d")
+    date_today = datetime.datetime.now(IST).date().strftime("%Y-%m-%d")
     
     # Get the last hash to start the chain for this batch
     previous_hash = get_last_hash(c)
@@ -1454,7 +1451,7 @@ def student_request_change():
     if "document" in request.files:
         file = request.files["document"]
         if file and file.filename:
-            filename = f"{usn}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}"
+            filename = f"{usn}_{datetime.datetime.now(IST).strftime('%Y%m%d%H%M%S')}_{file.filename}"
             # Ensure uploads directory exists
             upload_dir = os.path.join("static", "uploads", "documents")
             if not os.path.exists(upload_dir):
@@ -1478,7 +1475,7 @@ def student_request_change():
         return redirect("/dashboard")
     
     # Insert pending change request
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
     c.execute("""
         INSERT INTO pending_attendance_changes 
         (attendance_id, new_status, requested_by, timestamp, comment, request_role, document_path)
